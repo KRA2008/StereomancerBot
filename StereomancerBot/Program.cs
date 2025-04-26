@@ -10,8 +10,9 @@ namespace StereomancerBot
 {
     public class Program
     {
-        private static readonly string crossPostedListFilename = "CrossPosted.txt";
-        private static readonly string credsFilename = "creds.json";
+        private static string appPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+        private static string crossPostedListPath = Path.Combine(appPath, "CrossPosted.txt");
+        private static string credsPath = Path.Combine(appPath, "creds.json");
 
         private const int MAX_POSTS_TO_MAKE = 10;
         private const int MAX_POSTS_TO_SEARCH = 100;
@@ -21,10 +22,10 @@ namespace StereomancerBot
         {
             try
             {
-                if (!File.Exists(crossPostedListFilename))
+                if (!File.Exists(crossPostedListPath))
                 {
                     Console.WriteLine("cross posted list not found, creating");
-                    File.Create(crossPostedListFilename).Close();
+                    File.Create(crossPostedListPath).Close();
                 }
             }
             catch (Exception e)
@@ -47,12 +48,12 @@ namespace StereomancerBot
         {
             try
             {
-                if (!File.Exists(credsFilename)) throw new Exception("No creds!");
+                if (!File.Exists(credsPath)) throw new Exception("No creds!");
 
                 Creds? creds;
-                using (var r = new StreamReader(credsFilename))
+                using (var r = new StreamReader(credsPath))
                 {
-                    var json = r.ReadToEnd();
+                    var json = await r.ReadToEndAsync();
                     creds = JsonConvert.DeserializeObject<Creds>(json);
                 }
                 if (creds == null) throw new Exception("Bad creds!");
@@ -68,7 +69,7 @@ namespace StereomancerBot
                 var destinationSubreddit = await reddit.GetSubredditAsync(destinationSubName);
                 var postsToConvert = await sourceSubreddit.GetPosts(Subreddit.Sort.Hot, MAX_POSTS_TO_SEARCH).ToListAsync();
                 var existingPosts = await destinationSubreddit.GetPosts(Subreddit.Sort.Hot, MAX_POSTS_TO_SEARCH).ToListAsync();
-                var alreadyConvertedByBot = File.ReadAllText(crossPostedListFilename);
+                var alreadyConvertedByBot = await File.ReadAllTextAsync(crossPostedListPath);
 
                 Console.WriteLine("opted out users: " + string.Join(",",creds.OptedOutUsers));
 
@@ -80,11 +81,13 @@ namespace StereomancerBot
                 var ownPosts = postsToConvert.Where(post => post.AuthorName == "StereomancerBot");
 
                 var jw = new JaroWinkler();
-                var doubledPosts = postsToConvert.Where(toConvert => existingPosts.Any(existing => jw.Similarity(toConvert.Title,existing.Title) > 0.95));
+                var doubledPosts = postsToConvert.Where(toConvert => existingPosts.Any(existing => jw.Similarity(toConvert.Title,existing.Title) > 0.90));
 
                 var invalidPosts = postsToConvert.Where(post => !post.Url.ToString().EndsWith(".jpg") &&
                                                                 !post.Url.ToString().EndsWith(".png") &&
                                                                 !post.Url.ToString().EndsWith(".jpeg"));
+
+                var badPosts = postsToConvert.Where(post => post.Score < 0 && post.Upvotes > 0);
 
                 var removeIds =
                     archivedPosts
@@ -93,7 +96,8 @@ namespace StereomancerBot
                         .Concat(optedOutPosts)
                         .Concat(ownPosts)
                         .Concat(doubledPosts)
-                        .Concat(invalidPosts).Select(a => a.Id);
+                        .Concat(invalidPosts)
+                        .Concat(badPosts).Select(a => a.Id);
 
                 postsToConvert = postsToConvert.Where(p => !removeIds.Contains(p.Id)).ToList();
 
@@ -107,7 +111,7 @@ namespace StereomancerBot
                     {
                         var image = await originalImageClient.GetAsync(postToConvert.Url);
                         image.EnsureSuccessStatusCode();
-                        originalImageStream = image.Content.ReadAsStream();
+                        originalImageStream = await image.Content.ReadAsStreamAsync();
                     }
                     catch (Exception ex)
                     {
@@ -144,7 +148,7 @@ namespace StereomancerBot
                     Console.WriteLine("uploading image " + postToConvert.Title);
                     var imageUpload = await imageEndpoint.UploadImageAsync(convertedImageStream, title: postToConvert.Title,
                         description: "Originally posted to Reddit by " + postToConvert.AuthorName + ", converted by StereomancerBot");
-                    
+
                     Console.WriteLine("posting " + postToConvert.Title);
                     var crossPost = await destinationSubreddit.SubmitPostAsync(postToConvert.Title + " (converted from r/" + sourceSubName + ")", imageUpload.Link);
 
@@ -163,7 +167,7 @@ namespace StereomancerBot
 
                     await postToConvert.CommentAsync("I'm a bot and I've converted this post to r/" + destinationSubName + " and you can see that here: https://reddit.com/r/" + destinationSubName + "/comments/" + crossPost.Id);
 
-                    File.AppendAllLines(crossPostedListFilename, [postToConvert.Id]);
+                    await File.AppendAllLinesAsync(crossPostedListPath, [postToConvert.Id]);
                 }
             }
             catch (Exception e)
