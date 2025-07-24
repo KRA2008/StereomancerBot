@@ -1,6 +1,6 @@
 ﻿namespace StereomancerBot
 {
-    internal class Creds
+    public class Creds
     {
         public string RedditUsername { get; set; }
         public string RedditPassword { get; set; }
