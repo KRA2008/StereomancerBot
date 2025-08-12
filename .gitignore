@@ -9,6 +9,8 @@
 
 creds.json
 Pipfile.lock
+temp/
+CrossPosted.txt
 
 IDA/
 publishout/
