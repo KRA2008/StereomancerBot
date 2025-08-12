@@ -71,9 +71,8 @@ def swapAndCrossPost(originSubName,destinationSubName):
         if hasattr(originalPost,'is_gallery') == False:
             tempFileName='temp/temp.jpg'
             convertImage(originalPost.url,tempFileName)
-            #TODO handle nsfw tag
             #TODO handle body text
-            swappedPost = destinationSubreddit.submit_image(image_path=tempFileName,title=originalPost.title + ' (converted from r/' + originSubName + ')')
+            swappedPost = destinationSubreddit.submit_image(image_path=tempFileName,title=originalPost.title + ' (converted from r/' + originSubName + ')',nsfw=originalPost.over_18)
 
 
 
@@ -85,9 +84,8 @@ def swapAndCrossPost(originSubName,destinationSubName):
                 convertImage(f'https://i.redd.it/{item['media_id']}.jpg',tempFileName)
                 convertedImages.append({'image_path':tempFileName})
 
-            #TODO handle nsfw tag
             #TODO handle body text
-            swappedPost = destinationSubreddit.submit_gallery(title=originalPost.title + ' (converted from r/' + originSubName + ')',images=convertedImages)
+            swappedPost = destinationSubreddit.submit_gallery(title=originalPost.title + ' (converted from r/' + originSubName + ')',images=convertedImages,nsfw=originalPost.over_18)
 
         swappedPost.reply("Original post: " + originalPost.permalink + " by [" + originalPost.author.name + "](https://reddit.com/user/" + originalPost.author.name + ")"+
                         "\r\n\r\n" +
