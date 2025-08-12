@@ -22,11 +22,12 @@ reddit = praw.Reddit(
 )
 
 def swapAndCrossPost(originSubName,destinationSubName):
-    postsLimit = 1
+    postsLimit = 10
     originSubreddit = reddit.subreddit(originSubName)
     destinationSubreddit = reddit.subreddit(destinationSubName)
     originPosts = originSubreddit.new(limit=postsLimit)
     destinationPostTitles = [post.title for post in destinationSubreddit.new(limit=postsLimit)]
+
 
     def duplicatesFilter(post):
         for title in destinationPostTitles:
@@ -34,19 +35,20 @@ def swapAndCrossPost(originSubName,destinationSubName):
                 return True
         return False
 
+
     eligiblePosts = [post for post in originPosts 
                      if post.is_video == False and                          #keep videos out for now
-                     hasattr(post,'is_gallery') == False and                #keep galleries out for now
-                     post.url.endswith('.jpeg') and
+                     (hasattr(post,'is_gallery') == True or
+                     post.url.endswith('.jpeg')) and
                      post.id not in crossPosted and
                      post.author.name not in creds['OptedOutUsers'] and
                      post.author.name != 'StereomancerBot' and
                      post.upvote_ratio > 0.5 and
                      duplicatesFilter(post) == False]
 
-    for originalPost in eligiblePosts:
-        print(originalPost.title)
-        imageResponse = requests.get(originalPost.url)
+
+    def convertImage(imageUrl,imagePath):
+        imageResponse = requests.get(imageUrl)
         originalImage = Image.open(BytesIO(imageResponse.content))
         originalWidth = originalImage.width
         originalHeight = originalImage.height
@@ -58,16 +60,40 @@ def swapAndCrossPost(originSubName,destinationSubName):
         swappedImage.paste(originalImage,leftStart)
         swappedImage.paste(originalImage,rightStart)
 
-        tempFileName='temp/temp.jpg'
+        tempFileName=imagePath
         swappedImage.save(tempFileName)
 
-        swappedPost = destinationSubreddit.submit_image(image_path=tempFileName,title=originalPost.title + ' (converted from r/' + originSubName + ')')
+
+    for originalPost in eligiblePosts:
+
+        print(originalPost.title)
+
+        if hasattr(originalPost,'is_gallery') == False:
+            tempFileName='temp/temp.jpg'
+            convertImage(originalPost.url,tempFileName)
+            #TODO handle nsfw tag
+            #TODO handle body text
+            swappedPost = destinationSubreddit.submit_image(image_path=tempFileName,title=originalPost.title + ' (converted from r/' + originSubName + ')')
+
+
+
+        else:
+            convertedImages = []
+
+            for ii,item in enumerate(originalPost.gallery_data['items']):
+                tempFileName=f'temp/temp{ii}.jpg'
+                convertImage(f'https://i.redd.it/{item['media_id']}.jpg',tempFileName)
+                convertedImages.append({'image_path':tempFileName})
+
+            #TODO handle nsfw tag
+            #TODO handle body text
+            swappedPost = destinationSubreddit.submit_gallery(title=originalPost.title + ' (converted from r/' + originSubName + ')',images=convertedImages)
 
         swappedPost.reply("Original post: " + originalPost.permalink + " by [" + originalPost.author.name + "](https://reddit.com/user/" + originalPost.author.name + ")"+
-                                "\r\n\r\n" +
-                                "I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) " +
-                                "I convert posts between cross and parallel viewing and repost them between the two subs. " +
-                                "Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions.")
+                        "\r\n\r\n" +
+                        "I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) " +
+                        "I convert posts between cross and parallel viewing and repost them between the two subs. " +
+                        "Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions.")
 
         originalPost.reply("I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I've converted this post to r/" + destinationSubName + " and you can see that here: " + swappedPost.permalink)
 
