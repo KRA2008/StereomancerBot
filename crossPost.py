@@ -2,10 +2,7 @@ import praw
 import json
 import pprint
 from difflib import SequenceMatcher
-from PIL import Image
-import requests
-from io import BytesIO
-
+import stereoConvert
 
 try:
     with open('creds.json','r') as file:
@@ -25,8 +22,7 @@ try:
 
     def swapAndCrossPost(originSubName,destinationSubName):
         postsSearchLimit = 100
-        postsMakeLimit = 10
-        maxImageWidth = 2000
+        postsMakeLimit = 1
         originSubreddit = reddit.subreddit(originSubName)
         destinationSubreddit = reddit.subreddit(destinationSubName)
         originPosts = originSubreddit.new(limit=postsSearchLimit)
@@ -56,35 +52,13 @@ try:
         eligiblePosts = eligiblePosts[:postsMakeLimit]
         print(f'converting {len(eligiblePosts)} posts')
 
-        def convertImage(imageUrl,imagePath):
-            imageResponse = requests.get(imageUrl)
-            originalImage = Image.open(BytesIO(imageResponse.content))
-
-            if originalImage.width > maxImageWidth:
-                originalImage = originalImage.resize((int(maxImageWidth),int(maxImageWidth * originalImage.height / originalImage.width)))
-    
-            swappedImage = Image.new(mode=originalImage.mode,size=originalImage.size)
-            swappedImage.show()
-
-            leftStart = (int(originalImage.width/-2),0)
-            rightStart = (int(originalImage.width/2),0)
-            swappedImage.paste(originalImage,leftStart)
-            swappedImage.paste(originalImage,rightStart)
-
-            if swappedImage.mode in ('RGBA','P'):
-                swappedImage = swappedImage.convert('RGB')
-
-            tempFileName=imagePath
-            swappedImage.save(tempFileName)
-
-
         for originalPost in eligiblePosts:
 
             print(originalPost.title)
 
             if hasattr(originalPost,'is_gallery') == False:
                 tempFileName='temp/temp.jpg'
-                convertImage(originalPost.url,tempFileName)
+                stereoConvert.convertImage(originalPost.url,tempFileName)
                 #TODO handle body text?
                 swappedPost = destinationSubreddit.submit_image(image_path=tempFileName,title=originalPost.title + ' (converted from r/' + originSubName + ')',nsfw=originalPost.over_18)
 
@@ -95,7 +69,7 @@ try:
 
                 for ii,item in enumerate(originalPost.gallery_data['items']):
                     tempFileName=f'temp/temp{ii}.jpg'
-                    convertImage(f'https://i.redd.it/{item['media_id']}.jpg',tempFileName)
+                    stereoConvert.convertImage(f'https://i.redd.it/{item['media_id']}.jpg',tempFileName)
                     convertedImages.append({'image_path':tempFileName})
 
                 #TODO handle body text?

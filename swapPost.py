@@ -12,6 +12,29 @@ try:
         username=creds['RedditUsername'],
         user_agent="windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)"
     )
+
+    def swapSidesAndUpload(post):
+        if hasattr(originalPost,'is_gallery') == False:
+        else:
+
+    def checkForSwaps(subredditName):
+        maxPostsSearch=100
+        posts = reddit.subreddit(subredditName).new(limit=maxPostsSearch)
+        posts = [post for post in originPosts 
+                if post.is_video == False and                          #keep videos out for now
+                (hasattr(post,'is_gallery') == True or
+                post.url.endswith('.jpeg') or
+                post.url.endswith('.png') or
+                post.url.endswith('.jpg'))]
+
+        for post in posts:
+            for comment in post.comments.list():
+                if comment.body == '!swap':
+                    fixedPost = swapSidesAndUpload(post)
+
+    # checkForSwaps('crossview')
+    # checkForSwaps('parallelview')
+    checkForSwaps('test')
 except OSError as e:
     print(f"OSError caught: {e}")
     print(f"OSError number (errno): {e.errno}")
