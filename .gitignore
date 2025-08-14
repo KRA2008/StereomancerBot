@@ -11,6 +11,7 @@ creds.json
 Pipfile.lock
 temp/
 CrossPosted.txt
+Swapped.txt
 
 IDA/
 publishout/
