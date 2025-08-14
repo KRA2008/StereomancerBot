@@ -26,6 +26,7 @@ try:
     def swapAndCrossPost(originSubName,destinationSubName):
         postsSearchLimit = 100
         postsMakeLimit = 10
+        maxImageWidth = 2000
         originSubreddit = reddit.subreddit(originSubName)
         destinationSubreddit = reddit.subreddit(destinationSubName)
         originPosts = originSubreddit.new(limit=postsSearchLimit)
@@ -58,13 +59,15 @@ try:
         def convertImage(imageUrl,imagePath):
             imageResponse = requests.get(imageUrl)
             originalImage = Image.open(BytesIO(imageResponse.content))
-            originalWidth = originalImage.width
-            originalHeight = originalImage.height
-    
-            swappedImage = originalImage.copy()
 
-            leftStart = (int(originalWidth/-2),0)
-            rightStart = (int(originalWidth/2),0)
+            if originalImage.width > maxImageWidth:
+                originalImage = originalImage.resize((int(maxImageWidth),int(maxImageWidth * originalImage.height / originalImage.width)))
+    
+            swappedImage = Image.new(mode=originalImage.mode,size=originalImage.size)
+            swappedImage.show()
+
+            leftStart = (int(originalImage.width/-2),0)
+            rightStart = (int(originalImage.width/2),0)
             swappedImage.paste(originalImage,leftStart)
             swappedImage.paste(originalImage,rightStart)
 
@@ -109,14 +112,13 @@ try:
             with open(crossPostedListName,'a') as file:
                 file.write(originalPost.id+'\n')
 
-    # swapAndCrossPost('crossview','parallelview')
+    swapAndCrossPost('crossview','parallelview')
     swapAndCrossPost('parallelview','crossview')
 except OSError as e:
     print(f"OSError caught: {e}")
     print(f"OSError number (errno): {e.errno}")
     print(f"Operating system error code (winerror on Windows): {getattr(e, 'winerror', 'N/A')}")
     print(f"Error message: {e.strerror}")
-except Error as e:
+except Exception as e:
     print(f"Error caught: {e}")
-    print(f"Error number (errno): {e.errno}")
     print(f"Error message: {e.strerror}")
