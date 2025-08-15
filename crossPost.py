@@ -22,7 +22,7 @@ try:
 
     def swapAndCrossPost(originSubName,destinationSubName):
         postsSearchLimit = 100
-        postsMakeLimit = 1
+        postsMakeLimit = 10
         originSubreddit = reddit.subreddit(originSubName)
         destinationSubreddit = reddit.subreddit(destinationSubName)
         originPosts = originSubreddit.new(limit=postsSearchLimit)

@@ -62,9 +62,9 @@ try:
                     with open(swappedListName,'a') as file:
                         file.write(post.id+'\n')
 
-    # checkForSwaps('crossview')
-    # checkForSwaps('parallelview')
-    checkForSwaps('test')
+    checkForSwaps('crossview')
+    checkForSwaps('parallelview')
+    # checkForSwaps('test')
 except OSError as e:
     print(f"OSError caught: {e}")
     print(f"OSError number (errno): {e.errno}")
