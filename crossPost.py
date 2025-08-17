@@ -96,4 +96,4 @@ except OSError as e:
     print(f"Error message: {e.strerror}")
 except Exception as e:
     print(f"Error caught: {e}")
-    print(f"Error message: {e.strerror}")
+    pprint.pprint(vars(e))
