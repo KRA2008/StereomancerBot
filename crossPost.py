@@ -1,4 +1,5 @@
 import praw
+import asyncpraw
 import json
 import pprint
 from difflib import SequenceMatcher
@@ -52,12 +53,12 @@ try:
         eligiblePosts = eligiblePosts[:postsMakeLimit]
         print(f'converting {len(eligiblePosts)} posts')
 
-        for originalPost in eligiblePosts:
+        for jj,originalPost in enumerate(eligiblePosts):
 
             print(originalPost.title)
 
             if hasattr(originalPost,'is_gallery') == False:
-                tempFileName='temp/temp.jpg'
+                tempFileName=f'temp/temp{jj}.jpg'
                 stereoConvert.convertImage(originalPost.url,tempFileName)
                 #TODO handle body text?
                 swappedPost = destinationSubreddit.submit_image(image_path=tempFileName,title=originalPost.title + ' (converted from r/' + originSubName + ')',nsfw=originalPost.over_18)
@@ -68,7 +69,7 @@ try:
                 convertedImages = []
 
                 for ii,item in enumerate(originalPost.gallery_data['items']):
-                    tempFileName=f'temp/temp{ii}.jpg'
+                    tempFileName=f'temp/temp{jj}_{ii}.jpg'
                     stereoConvert.convertImage(f'https://i.redd.it/{item['media_id']}.jpg',tempFileName)
                     convertedImages.append({'image_path':tempFileName})
 
