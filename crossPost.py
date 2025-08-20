@@ -7,8 +7,8 @@ from difflib import SequenceMatcher
 import stereoConvert
 import os
 
-testing = True
-# testing = False
+# testing = True
+testing = False
 
 userAgent = "windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)"
 
@@ -84,10 +84,12 @@ try:
                     if os.path.isfile(tempFileName) == False:
                         continue
                     convertedImages.append({'image_path':tempFileName})
-                    os.remove(tempFileName)
 
                 #TODO handle body text?
                 swappedPost = destinationSubreddit.submit_gallery(title=originalPost.title + ' (converted from r/' + originSubName + ')',images=convertedImages,nsfw=originalPost.over_18)
+
+                for image in convertedImages:
+                    os.remove(image['image_path'])
 
             swappedPost.reply("Original post: " + originalPost.permalink + " by [" + originalPost.author.name + "](https://reddit.com/user/" + originalPost.author.name + ")"+
                             "\r\n\r\n" +
