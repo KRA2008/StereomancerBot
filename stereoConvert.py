@@ -3,20 +3,18 @@ import requests
 from io import BytesIO
 import pprint
 
-def convertImage(imageUrl,imagePath,userAgent):
+async def convertImage(imageUrl,imagePath,userAgent,session):
     maxImageWidth = 2000
     print(f'fetching {imageUrl}')
     headers = {
         'User-Agent':userAgent #required by imgur
     }
-    imageResponse = requests.get(imageUrl,headers=headers)
-
-    if imageResponse.status_code != 200:
-        print('image fetching failed: ' + str(imageResponse.status_code))
-        return
-
-    originalImage = Image.open(BytesIO(imageResponse.content))
-
+    async with session.get(url=imageUrl,headers=headers) as response:
+        responseResult = await response.read()
+        if response.status != 200:
+            print('image fetching failed: ' + str(response.status))
+            return
+        originalImage = Image.open(BytesIO(responseResult))
 
     if originalImage.width > maxImageWidth:
         originalImage = originalImage.resize((int(maxImageWidth),int(maxImageWidth * originalImage.height / originalImage.width)))
