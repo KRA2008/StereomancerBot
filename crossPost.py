@@ -10,6 +10,8 @@ import os
 testing = True
 # testing = False
 
+userAgent = "windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)"
+
 try:
     with open('creds.json','r') as file:
         creds = json.load(file)
@@ -23,7 +25,7 @@ try:
         client_secret=creds['RedditClientSecret'],
         password=creds['RedditPassword'],
         username=creds['RedditUsername'],
-        user_agent="windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)"
+        user_agent=userAgent
     )
 
     def swapAndCrossPost(originSubName,destinationSubName):
@@ -66,7 +68,7 @@ try:
 
             if hasattr(originalPost,'is_gallery') == False:
                 tempFileName=f'temp/temp{jj}.jpg'
-                stereoConvert.convertImage(originalPost.url,tempFileName)
+                stereoConvert.convertImage(originalPost.url,tempFileName,userAgent)
                 if os.path.isfile(tempFileName) == False:
                     continue
                 #TODO handle body text?
@@ -78,7 +80,7 @@ try:
 
                 for ii,item in enumerate(originalPost.gallery_data['items']):
                     tempFileName=f'temp/temp{jj}_{ii}.jpg'
-                    stereoConvert.convertImage(f'https://i.redd.it/{item['media_id']}.jpg',tempFileName)
+                    stereoConvert.convertImage(f'https://i.redd.it/{item['media_id']}.jpg',tempFileName,userAgent)
                     if os.path.isfile(tempFileName) == False:
                         continue
                     convertedImages.append({'image_path':tempFileName})
@@ -99,10 +101,11 @@ try:
                 if testing:
                     print('processed ' + originalPost.id + ' in testing mode')
                 else:
-                    file.write(originalPost.id+'\n')
+                    with open(crossPostedListName,'a') as file:
+                        file.write(originalPost.id+'\n')
 
     if testing:
-        swapAndCrossPost('test','crosscam')
+        swapAndCrossPost('test','u_StereomancerBot')
     else:
         swapAndCrossPost('crossview','parallelview')
         swapAndCrossPost('parallelview','crossview')

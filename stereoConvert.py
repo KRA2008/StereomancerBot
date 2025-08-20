@@ -3,17 +3,20 @@ import requests
 from io import BytesIO
 import pprint
 
-def convertImage(imageUrl,imagePath):
+def convertImage(imageUrl,imagePath,userAgent):
     maxImageWidth = 2000
     print(f'fetching {imageUrl}')
-    imageResponse = requests.get(imageUrl)
-    imageBuffer = BytesIO(imageResponse.content)
+    headers = {
+        'User-Agent':userAgent #required by imgur
+    }
+    imageResponse = requests.get(imageUrl,headers=headers)
 
-    try:
-        originalImage = Image.open(imageBuffer)
-    except Image.UnidentifiedImageError as er:
-        print('UnidentifiedImageError occurred: ' + imageUrl) #this keeps happening with imgur links TODO fix it
+    if imageResponse.status_code != 200:
+        print('image fetching failed: ' + str(imageResponse.status_code))
         return
+
+    originalImage = Image.open(BytesIO(imageResponse.content))
+
 
     if originalImage.width > maxImageWidth:
         originalImage = originalImage.resize((int(maxImageWidth),int(maxImageWidth * originalImage.height / originalImage.width)))
