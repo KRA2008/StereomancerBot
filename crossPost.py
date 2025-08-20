@@ -1,9 +1,14 @@
+from genericpath import isfile
 import praw
 import asyncpraw
 import json
 import pprint
 from difflib import SequenceMatcher
 import stereoConvert
+import os
+
+testing = True
+# testing = False
 
 try:
     with open('creds.json','r') as file:
@@ -23,7 +28,7 @@ try:
 
     def swapAndCrossPost(originSubName,destinationSubName):
         postsSearchLimit = 100
-        postsMakeLimit = 10
+        postsMakeLimit = 2 if testing else 10
         originSubreddit = reddit.subreddit(originSubName)
         destinationSubreddit = reddit.subreddit(destinationSubName)
         originPosts = originSubreddit.new(limit=postsSearchLimit)
@@ -47,7 +52,7 @@ try:
                          post.author.name not in creds['OptedOutUsers'] and
                          post.author.name != 'StereomancerBot' and
                          post.upvote_ratio > 0.5 and
-                         duplicatesFilter(post) == False]
+                         duplicatesFilter(post) == False] #TODO: filter out old stuff too
         print(f'found {len(eligiblePosts)} eligible posts')
 
         eligiblePosts = eligiblePosts[:postsMakeLimit]
@@ -56,14 +61,17 @@ try:
         for jj,originalPost in enumerate(eligiblePosts):
 
             print(originalPost.title)
+            if testing:
+                pprint.pprint(vars(originalPost))
 
             if hasattr(originalPost,'is_gallery') == False:
                 tempFileName=f'temp/temp{jj}.jpg'
                 stereoConvert.convertImage(originalPost.url,tempFileName)
+                if os.path.isfile(tempFileName) == False:
+                    continue
                 #TODO handle body text?
                 swappedPost = destinationSubreddit.submit_image(image_path=tempFileName,title=originalPost.title + ' (converted from r/' + originSubName + ')',nsfw=originalPost.over_18)
-
-
+                os.remove(tempFileName)
 
             else:
                 convertedImages = []
@@ -71,7 +79,10 @@ try:
                 for ii,item in enumerate(originalPost.gallery_data['items']):
                     tempFileName=f'temp/temp{jj}_{ii}.jpg'
                     stereoConvert.convertImage(f'https://i.redd.it/{item['media_id']}.jpg',tempFileName)
+                    if os.path.isfile(tempFileName) == False:
+                        continue
                     convertedImages.append({'image_path':tempFileName})
+                    os.remove(tempFileName)
 
                 #TODO handle body text?
                 swappedPost = destinationSubreddit.submit_gallery(title=originalPost.title + ' (converted from r/' + originSubName + ')',images=convertedImages,nsfw=originalPost.over_18)
@@ -85,10 +96,16 @@ try:
             originalPost.reply("I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I've converted this post to r/" + destinationSubName + " and you can see that here: " + swappedPost.permalink)
 
             with open(crossPostedListName,'a') as file:
-                file.write(originalPost.id+'\n')
+                if testing:
+                    print('processed ' + originalPost.id + ' in testing mode')
+                else:
+                    file.write(originalPost.id+'\n')
 
-    swapAndCrossPost('crossview','parallelview')
-    swapAndCrossPost('parallelview','crossview')
+    if testing:
+        swapAndCrossPost('test','crosscam')
+    else:
+        swapAndCrossPost('crossview','parallelview')
+        swapAndCrossPost('parallelview','crossview')
 except OSError as e:
     print(f"OSError caught: {e}")
     print(f"OSError number (errno): {e.errno}")
