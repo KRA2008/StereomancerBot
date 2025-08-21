@@ -7,18 +7,18 @@ import os
 import asyncio
 from aiohttp import ClientSession
 
-testing = True
-# testing = False
+# testing = True
+testing = False
 
 crossPostedListName = 'CrossPosted.txt'
 credsFileName = 'creds.json'
 userAgent = 'windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)'
 
 
-async def processGalleryItem(ii,jj,originalPost,item,destinationSubName,session,convertedImages):
+async def processGalleryItem(ii,jj,originalPost,item,destinationSub,session,convertedImages):
     try:
         f,extension = os.path.splitext(originalPost.url)
-        tempFileName=f'temp/{destinationSubName}temp{ii}_{jj}{extension}'
+        tempFileName=f'temp/{destinationSub.display_name}temp{ii}_{jj}{extension}'
         await stereoConvert.convertImage(f'https://i.redd.it/{item['media_id']}.jpg',tempFileName,userAgent,session)
         if os.path.isfile(tempFileName) == False:
             return
@@ -27,28 +27,28 @@ async def processGalleryItem(ii,jj,originalPost,item,destinationSubName,session,
         print('processGalleryItems ex: ' + ex)
         raise
 
-async def processPost(ii,originalPost,originSubName,destinationSubName,destinationSub,session):
+async def processPost(ii,originalPost,originSub,destinationSub,session):
     try:
         print(f'{originalPost.title}, {originalPost.id}')
         # pprint.pprint(vars(originalPost))
 
         if hasattr(originalPost,'is_gallery') == False:
             f,extension = os.path.splitext(originalPost.url)
-            tempFileName=f'temp/{destinationSubName}temp{ii}{extension}'
+            tempFileName=f'temp/{destinationSub.display_name}temp{ii}{extension}'
             await stereoConvert.convertImage(originalPost.url,tempFileName,userAgent,session)
             if os.path.isfile(tempFileName) == False:
                 return
             #TODO handle body text?
-            swappedPost = await destinationSub.submit_image(image_path=tempFileName,title=originalPost.title + ' (converted from r/' + originSubName + ')',nsfw=originalPost.over_18)
+            swappedPost = await destinationSub.submit_image(image_path=tempFileName,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18)
             os.remove(tempFileName)
 
         else:
             convertedImages = []
             async with asyncio.TaskGroup() as tg:
-                _ = [tg.create_task(processGalleryItem(ii,jj,originalPost,item,destinationSubName,session,convertedImages)) for jj,item in enumerate(originalPost.gallery_data['items'])]
+                _ = [tg.create_task(processGalleryItem(ii,jj,originalPost,item,destinationSub,session,convertedImages)) for jj,item in enumerate(originalPost.gallery_data['items'])]
 
             #TODO handle body text?
-            swappedPost = await destinationSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSubName + ')',images=convertedImages,nsfw=originalPost.over_18)
+            swappedPost = await destinationSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=convertedImages,nsfw=originalPost.over_18)
 
             for image in convertedImages:
                 os.remove(image['image_path'])
@@ -59,7 +59,7 @@ async def processPost(ii,originalPost,originSubName,destinationSubName,destinati
                             "I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) " +
                             "I convert posts between cross and parallel viewing and repost them between the two subs. " +
                             "Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions."))
-            tg.create_task(originalPost.reply("I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I've converted this post to r/" + destinationSubName + " and you can see that here: " + swappedPost.permalink))
+            tg.create_task(originalPost.reply("I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I've converted this post to r/" + destinationSub.display_name + " and you can see that here: " + swappedPost.permalink))
 
         with open(crossPostedListName,'a') as file:
             if testing:
@@ -79,11 +79,11 @@ def duplicatesFilter(post,destinationPostTitles):
     return False
 
 
-async def swapAndCrossPost(creds,originSubName,originSub,destinationSubName,destinationSub):
+async def swapAndCrossPost(creds,originSub,destinationSub):
     try:
         postsSearchLimit = 100
         postsMakeLimit = 2 if testing else 10
-        print(f'starting {originSubName} to {destinationSubName}')
+        print(f'starting {originSub.display_name} to {destinationSub.display_name}')
         originPosts = originSub.new(limit=postsSearchLimit)
         destinationPostTitles = [post.title async for post in destinationSub.new(limit=postsSearchLimit)]
 
@@ -107,7 +107,7 @@ async def swapAndCrossPost(creds,originSubName,originSub,destinationSubName,dest
         print(f'converting {len(eligiblePosts)} posts')
         async with ClientSession() as session:
             async with asyncio.TaskGroup() as tg:
-                _ = [tg.create_task(processPost(ii,originalPost,originSubName,destinationSubName,destinationSub,session)) for ii,originalPost in enumerate(eligiblePosts)]
+                _ = [tg.create_task(processPost(ii,originalPost,originSub,destinationSub,session)) for ii,originalPost in enumerate(eligiblePosts)]
     except Exception as ex:
         print('swapAndCross ex: ' + str(ex))
         raise
@@ -140,8 +140,8 @@ async def main():
             secondSubreddit = secondSubredditTask.result()
 
             async with asyncio.TaskGroup() as tg:
-                tg.create_task(swapAndCrossPost(creds,first,firstSubreddit,second,secondSubreddit))
-                tg.create_task(swapAndCrossPost(creds,second,secondSubreddit,first,firstSubreddit))
+                tg.create_task(swapAndCrossPost(creds,firstSubreddit,secondSubreddit))
+                tg.create_task(swapAndCrossPost(creds,secondSubreddit,firstSubreddit))
 
     except OSError as e:
         print(f"OSError caught: {e}")
