@@ -1,7 +1,5 @@
 from PIL import Image
-import requests
 from io import BytesIO
-import pprint
 
 async def convertImage(imageUrl,imagePath,userAgent,session):
     maxImageWidth = 2000

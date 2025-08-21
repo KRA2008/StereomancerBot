@@ -1,5 +1,3 @@
-from genericpath import isfile
-import praw
 import asyncpraw
 import json
 import pprint
@@ -31,13 +29,12 @@ async def main():
         ) as reddit:
 
             async with ClientSession() as session:
-                async def swapAndCrossPost(originSubName,destinationSubName):
+                async def swapAndCrossPost(originSubName,originSub,destinationSubName,destinationSub):
                     postsSearchLimit = 100
                     postsMakeLimit = 1 if testing else 10
-                    originSubreddit = await reddit.subreddit(originSubName)
-                    destinationSubreddit = await reddit.subreddit(destinationSubName)
-                    originPosts = originSubreddit.new(limit=postsSearchLimit)
-                    destinationPostTitles = [post.title async for post in destinationSubreddit.new(limit=postsSearchLimit)]
+                    print(f'starting {originSubName} to {destinationSubName}')
+                    originPosts = originSub.new(limit=postsSearchLimit)
+                    destinationPostTitles = [post.title async for post in destinationSub.new(limit=postsSearchLimit)]
 
 
                     def duplicatesFilter(post):
@@ -66,17 +63,16 @@ async def main():
                     for jj,originalPost in enumerate(eligiblePosts):
 
                         print(f'{originalPost.title}, {originalPost.id}')
-                        # if testing:
-                        #     pprint.pprint(vars(originalPost))
+                        # pprint.pprint(vars(originalPost))
 
                         if hasattr(originalPost,'is_gallery') == False:
                             f,extension = os.path.splitext(originalPost.url)
-                            tempFileName=f'temp/temp{jj}{extension}'
+                            tempFileName=f'temp/{destinationSubName}temp{jj}{extension}'
                             await stereoConvert.convertImage(originalPost.url,tempFileName,userAgent,session)
                             if os.path.isfile(tempFileName) == False:
                                 continue
                             #TODO handle body text?
-                            swappedPost = await destinationSubreddit.submit_image(image_path=tempFileName,title=originalPost.title + ' (converted from r/' + originSubName + ')',nsfw=originalPost.over_18)
+                            swappedPost = await destinationSub.submit_image(image_path=tempFileName,title=originalPost.title + ' (converted from r/' + originSubName + ')',nsfw=originalPost.over_18)
                             os.remove(tempFileName)
 
                         else:
@@ -84,25 +80,25 @@ async def main():
 
                             for ii,item in enumerate(originalPost.gallery_data['items']):
                                 f,extension = os.path.splitext(originalPost.url)
-                                tempFileName=f'temp/temp{jj}_{ii}{extension}'
+                                tempFileName=f'temp/{destinationSubName}temp{jj}_{ii}{extension}'
                                 await stereoConvert.convertImage(f'https://i.redd.it/{item['media_id']}.jpg',tempFileName,userAgent,session)
                                 if os.path.isfile(tempFileName) == False:
                                     continue
                                 convertedImages.append({'image_path':tempFileName})
 
                             #TODO handle body text?
-                            swappedPost = await destinationSubreddit.submit_gallery(title=originalPost.title + ' (converted from r/' + originSubName + ')',images=convertedImages,nsfw=originalPost.over_18)
+                            swappedPost = await destinationSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSubName + ')',images=convertedImages,nsfw=originalPost.over_18)
 
                             for image in convertedImages:
                                 os.remove(image['image_path'])
 
-                        await swappedPost.reply("Original post: " + originalPost.permalink + " by [" + originalPost.author.name + "](https://reddit.com/user/" + originalPost.author.name + ")"+
-                                        "\r\n\r\n" +
-                                        "I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) " +
-                                        "I convert posts between cross and parallel viewing and repost them between the two subs. " +
-                                        "Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions.")
-
-                        await originalPost.reply("I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I've converted this post to r/" + destinationSubName + " and you can see that here: " + swappedPost.permalink)
+                        async with asyncio.TaskGroup() as tg:
+                            tg.create_task(swappedPost.reply("Original post: " + originalPost.permalink + " by [" + originalPost.author.name + "](https://reddit.com/user/" + originalPost.author.name + ")"+
+                                            "\r\n\r\n" +
+                                            "I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) " +
+                                            "I convert posts between cross and parallel viewing and repost them between the two subs. " +
+                                            "Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions."))
+                            tg.create_task(originalPost.reply("I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I've converted this post to r/" + destinationSubName + " and you can see that here: " + swappedPost.permalink))
 
                         with open(crossPostedListName,'a') as file:
                             if testing:
@@ -111,11 +107,21 @@ async def main():
                                 with open(crossPostedListName,'a') as file:
                                     file.write(originalPost.id+'\n')
 
+
                 if testing:
-                    await swapAndCrossPost('test','u_StereomancerBot')
+                    first = 'test'
+                    second = 'u_StereomancerBot'
                 else:
-                    await swapAndCrossPost('crossview','parallelview')
-                    await swapAndCrossPost('parallelview','crossview')
+                    first = 'crossview'
+                    second = 'parallelview'
+                async with asyncio.TaskGroup() as tg:
+                    firstSubredditTask = tg.create_task(reddit.subreddit(first))
+                    secondSubredditTask = tg.create_task(reddit.subreddit(second))
+                firstSubreddit = firstSubredditTask.result()
+                secondSubreddit = secondSubredditTask.result()
+                async with asyncio.TaskGroup() as tg:
+                    tg.create_task(swapAndCrossPost(first,firstSubreddit,second,secondSubreddit))
+                    tg.create_task(swapAndCrossPost(second,secondSubreddit,first,firstSubreddit))
     except OSError as e:
         print(f"OSError caught: {e}")
         print(f"OSError number (errno): {e.errno}")
