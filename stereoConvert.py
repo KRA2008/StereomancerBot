@@ -1,5 +1,6 @@
 from PIL import Image
 from io import BytesIO
+from aiohttp import ClientSession
 
 async def convertImage(imageUrl,imagePath,userAgent,session):
     maxImageWidth = 2000
