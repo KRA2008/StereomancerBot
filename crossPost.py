@@ -6,6 +6,7 @@ import stereoConvert
 import os
 import asyncio
 from aiohttp import ClientSession
+from urllib.parse import urlparse
 
 # testing = True
 testing = False
@@ -15,17 +16,17 @@ credsFileName = 'creds.json'
 userAgent = 'windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)'
 
 
-async def processGalleryItem(ii,jj,originalPost,item,destinationSub,session,convertedImages):
+async def processGalleryItem(ii,jj,item,destinationSub,session,convertedImages,extension):
     try:
-        f,extension = os.path.splitext(originalPost.url)
         tempFileName=f'temp/{destinationSub.display_name}temp{ii}_{jj}{extension}'
-        await stereoConvert.convertImage(f'https://i.redd.it/{item['media_id']}.jpg',tempFileName,userAgent,session)
+        await stereoConvert.convertImage(f'https://i.redd.it/{item['media_id']}{extension}',tempFileName,userAgent,session)
         if os.path.isfile(tempFileName) == False:
             return
         convertedImages.append({'image_path':tempFileName})
     except Exception as ex:
         print('processGalleryItems ex: ' + ex)
         raise
+
 
 async def processPost(ii,originalPost,originSub,destinationSub,session):
     try:
@@ -44,8 +45,11 @@ async def processPost(ii,originalPost,originSub,destinationSub,session):
 
         else:
             convertedImages = []
+            previewUrl = originalPost.media_metadata[originalPost.gallery_data['items'][0]['media_id']]['p'][0]['u']
+            baseUrl = urlparse(previewUrl).path
+            f,extension = os.path.splitext(baseUrl)
             async with asyncio.TaskGroup() as tg:
-                _ = [tg.create_task(processGalleryItem(ii,jj,originalPost,item,destinationSub,session,convertedImages)) for jj,item in enumerate(originalPost.gallery_data['items'])]
+                _ = [tg.create_task(processGalleryItem(ii,jj,item,destinationSub,session,convertedImages,extension)) for jj,item in enumerate(originalPost.gallery_data['items'])]
 
             #TODO handle body text?
             swappedPost = await destinationSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=convertedImages,nsfw=originalPost.over_18)
@@ -101,10 +105,10 @@ async def swapAndCrossPost(creds,originSub,destinationSub):
                         post.author.name != 'StereomancerBot' and
                         post.upvote_ratio > 0.5 and
                         duplicatesFilter(post,destinationPostTitles) == False] #TODO: filter out old stuff too
-        print(f'found {len(eligiblePosts)} eligible posts')
+        print(f'found {len(eligiblePosts)} eligible posts in ' + originSub.display_name)
 
         eligiblePosts = eligiblePosts[:postsMakeLimit]
-        print(f'converting {len(eligiblePosts)} posts')
+        print(f'converting {len(eligiblePosts)} posts from ' + originSub.display_name)
         async with ClientSession() as session:
             async with asyncio.TaskGroup() as tg:
                 _ = [tg.create_task(processPost(ii,originalPost,originSub,destinationSub,session)) for ii,originalPost in enumerate(eligiblePosts)]
