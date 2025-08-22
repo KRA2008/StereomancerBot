@@ -31,3 +31,4 @@ async def convertImage(imageUrl,imagePath,userAgent,session):
     tempFileName=imagePath
     print(f'saving to {tempFileName}')
     swappedImage.save(tempFileName)
+    print(f'saved {tempFileName}')

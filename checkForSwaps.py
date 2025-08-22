@@ -31,12 +31,15 @@ async def main():
             selfSub = await reddit.subreddit('u_StereomancerBot')
             async with ClientSession() as session:
                 if hasattr(post,'is_gallery') == False:
+                    print('converting ' + post.title)
                     f,extension = os.path.splitext(post.url)
                     tempFileName=f'temp/swapTemp{extension}'
                     await stereoConvert.convertImage(post.url,tempFileName,userAgent,session)
-
-                    return await selfSub.submit_image(title=f'{post.title}(originally by {post.author.name}, with sides swapped)',image_path=tempFileName,nsfw=post.over_18)
+                    newImage = await selfSub.submit_image(title=f'{post.title}(originally by {post.author.name}, with sides swapped)',image_path=tempFileName,nsfw=post.over_18)
+                    os.remove(tempFileName)
+                    return newImage
                 else:
+                    print('converting ' + post.title)
                     convertedImages = []
                     previewUrl = post.media_metadata[post.gallery_data['items'][0]['media_id']]['p'][0]['u']
                     baseUrl = urlparse(previewUrl).path
@@ -45,11 +48,15 @@ async def main():
                         tempFileName=f'temp/swapTemp{ii}{extension}'
                         await stereoConvert.convertImage(f'https://i.redd.it/{item['media_id']}{extension}',tempFileName,userAgent,session)
                         convertedImages.append({'image_path':tempFileName})
-                        
-                    return await selfSub.submit_gallery(title=f'{post.title}(originally by {post.author.name}, with sides swapped)',images=convertedImages,nsfw=post.over_18)
+                    
+                    newGallery = await selfSub.submit_gallery(title=f'{post.title} (originally by {post.author.name}, with sides swapped)',images=convertedImages,nsfw=post.over_18)
+                    for image in convertedImages:
+                        os.remove(image['image_path'])
+                    return newGallery
 
         async def checkForSwaps(subredditName):
             maxPostsSearch=100
+            print('checking ' + subredditName)
             posts = (await reddit.subreddit(subredditName)).new(limit=maxPostsSearch)
             posts = [post async for post in posts 
                     if post.is_video == False and          #keep videos out for now
@@ -77,9 +84,9 @@ async def main():
                         with open(swappedListName,'a') as file:
                             file.write(post.id+'\n')
 
-        await checkForSwaps('crossview')
-        await checkForSwaps('parallelview')
-        # await checkForSwaps('test')
+        # await checkForSwaps('crossview')
+        # await checkForSwaps('parallelview')
+        await checkForSwaps('test')
     except OSError as e:
         print(f"OSError caught: {e}")
         print(f"OSError number (errno): {e.errno}")
