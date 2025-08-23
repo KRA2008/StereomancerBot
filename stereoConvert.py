@@ -2,8 +2,11 @@ from PIL import Image
 from io import BytesIO
 from aiohttp import ClientSession
 
-async def convertImage(imageUrl,imagePath,userAgent,session):
-    maxImageWidth = 2000
+
+maxImageWidth = 2000
+
+
+async def downloadAndDownsizeImage(imageUrl,userAgent,session):
     print(f'fetching {imageUrl}')
     headers = {
         'User-Agent':userAgent #required by imgur
@@ -12,12 +15,18 @@ async def convertImage(imageUrl,imagePath,userAgent,session):
         responseResult = await response.read()
         if response.status != 200:
             print('image fetching failed: ' + str(response.status))
-            return
-        originalImage = Image.open(BytesIO(responseResult))
+            return #throw?
+        downloadedImage = Image.open(BytesIO(responseResult))
 
-    if originalImage.width > maxImageWidth:
-        originalImage = originalImage.resize((int(maxImageWidth),int(maxImageWidth * originalImage.height / originalImage.width)))
-    
+    if downloadedImage.width > maxImageWidth:
+        downloadedImage = downloadedImage.resize((int(maxImageWidth),int(maxImageWidth * downloadedImage.height / downloadedImage.width)))
+
+    return downloadedImage
+
+
+async def swapCrossParallel(imageUrl,imagePath,userAgent,session):
+    originalImage = await downloadAndDownsizeImage(imageUrl,userAgent,session)
+
     swappedImage = Image.new(mode=originalImage.mode,size=originalImage.size)
 
     leftStart = (int(originalImage.width/-2),0)
@@ -28,7 +37,26 @@ async def convertImage(imageUrl,imagePath,userAgent,session):
     if swappedImage.mode in ('RGBA','P'):
         swappedImage = swappedImage.convert('RGB')
 
-    tempFileName=imagePath
-    print(f'saving to {tempFileName}')
-    swappedImage.save(tempFileName)
-    print(f'saved {tempFileName}')
+    print(f'saving to {imagePath}')
+    swappedImage.save(imagePath)
+    print(f'saved {imagePath}')
+
+
+async def convertToAnaglyph(imageUrl,imagePath,userAgent,session):
+    originalImage = await downloadAndDownsizeImage(imageUrl,userAgent,session)
+    
+    newImageWidth = originalImage.width/2
+    leftImage = Image.new('RGB',(int(newImageWidth),originalImage.height))
+    rightImage = Image.new('RGB',(int(newImageWidth),originalImage.height))
+
+    leftImage.paste(originalImage,(0,0))
+    rl,gl,bl = leftImage.split()
+
+    rightImage.paste(originalImage,(int(-newImageWidth),0))
+    rr,gr,br = rightImage.split()
+
+    newImage = Image.merge('RGB',(rr,gl,bl))
+
+    print(f'saving to {imagePath}')
+    newImage.save(imagePath)
+    print(f'saved {imagePath}')

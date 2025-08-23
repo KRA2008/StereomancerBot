@@ -34,7 +34,7 @@ async def main():
                     print('converting ' + post.title)
                     f,extension = os.path.splitext(post.url)
                     tempFileName=f'temp/swapTemp{extension}'
-                    await stereoConvert.convertImage(post.url,tempFileName,userAgent,session)
+                    await stereoConvert.swapCrossParallel(post.url,tempFileName,userAgent,session)
                     newImage = await selfSub.submit_image(title=f'{post.title}(originally by {post.author.name}, with sides swapped)',image_path=tempFileName,nsfw=post.over_18)
                     os.remove(tempFileName)
                     return newImage
@@ -46,7 +46,7 @@ async def main():
                     f,extension = os.path.splitext(baseUrl)
                     for ii,item in enumerate(post.gallery_data['items']):
                         tempFileName=f'temp/swapTemp{ii}{extension}'
-                        await stereoConvert.convertImage(f'https://i.redd.it/{item['media_id']}{extension}',tempFileName,userAgent,session)
+                        await stereoConvert.swapCrossParallel(f'https://i.redd.it/{item['media_id']}{extension}',tempFileName,userAgent,session)
                         convertedImages.append({'image_path':tempFileName})
                     
                     newGallery = await selfSub.submit_gallery(title=f'{post.title} (originally by {post.author.name}, with sides swapped)',images=convertedImages,nsfw=post.over_18)

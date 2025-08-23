@@ -19,7 +19,7 @@ userAgent = 'windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)'
 async def processGalleryItem(ii,jj,item,destinationSub,session,convertedImages,extension):
     try:
         tempFileName=f'temp/{destinationSub.display_name}temp{ii}_{jj}{extension}'
-        await stereoConvert.convertImage(f'https://i.redd.it/{item['media_id']}{extension}',tempFileName,userAgent,session)
+        await stereoConvert.swapCrossParallel(f'https://i.redd.it/{item['media_id']}{extension}',tempFileName,userAgent,session)
         if os.path.isfile(tempFileName) == False:
             return
         convertedImages.append({'image_path':tempFileName})
@@ -36,7 +36,7 @@ async def processPost(ii,originalPost,originSub,destinationSub,session):
         if hasattr(originalPost,'is_gallery') == False:
             f,extension = os.path.splitext(originalPost.url)
             tempFileName=f'temp/{destinationSub.display_name}temp{ii}{extension}'
-            await stereoConvert.convertImage(originalPost.url,tempFileName,userAgent,session)
+            await stereoConvert.swapCrossParallel(originalPost.url,tempFileName,userAgent,session)
             if os.path.isfile(tempFileName) == False:
                 return
             #TODO handle body text?
