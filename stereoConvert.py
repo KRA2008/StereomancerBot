@@ -1,6 +1,5 @@
 from PIL import Image
 from io import BytesIO
-from aiohttp import ClientSession
 
 
 maxImageWidth = 2000
@@ -11,6 +10,7 @@ async def downloadAndDownsizeImage(imageUrl,userAgent,session):
     headers = {
         'User-Agent':userAgent #required by imgur
     }
+
     async with session.get(url=imageUrl,headers=headers) as response:
         responseResult = await response.read()
         if response.status != 200:
@@ -37,26 +37,27 @@ async def swapCrossParallel(imageUrl,imagePath,userAgent,session):
     if swappedImage.mode in ('RGBA','P'):
         swappedImage = swappedImage.convert('RGB')
 
-    print(f'saving to {imagePath}')
     swappedImage.save(imagePath)
     print(f'saved {imagePath}')
 
 
-async def convertToAnaglyph(imageUrl,imagePath,userAgent,session):
+async def convertSbsToAnaglyph(imageUrl,imagePath,userAgent,session,isCross):
     originalImage = await downloadAndDownsizeImage(imageUrl,userAgent,session)
     
     newImageWidth = originalImage.width/2
-    leftImage = Image.new('RGB',(int(newImageWidth),originalImage.height))
-    rightImage = Image.new('RGB',(int(newImageWidth),originalImage.height))
+    image1 = Image.new('RGB',(int(newImageWidth),originalImage.height))
+    image2 = Image.new('RGB',(int(newImageWidth),originalImage.height))
 
-    leftImage.paste(originalImage,(0,0))
-    rl,gl,bl = leftImage.split()
+    image1.paste(originalImage,(0,0))
+    r1,g1,b1 = image1.split()
 
-    rightImage.paste(originalImage,(int(-newImageWidth),0))
-    rr,gr,br = rightImage.split()
+    image2.paste(originalImage,(int(-newImageWidth),0))
+    r2,g2,b2 = image2.split()
 
-    newImage = Image.merge('RGB',(rr,gl,bl))
+    if isCross:
+        newImage = Image.merge('RGB',(r2,g1,b1))
+    else:
+        newImage = Image.merge('RGB',(r1,g2,b2))
 
-    print(f'saving to {imagePath}')
     newImage.save(imagePath)
     print(f'saved {imagePath}')
