@@ -10,7 +10,8 @@
 creds.json
 Pipfile.lock
 temp/
-CrossPosted.txt
+SbsCrossPosted.txt
+AnaglyphCrossPosted.txt
 Swapped.txt
 
 IDA/

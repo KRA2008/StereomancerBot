@@ -2,10 +2,8 @@ from PIL import Image
 from io import BytesIO
 
 
-maxImageWidth = 2000
-
-
 async def downloadAndDownsizeImage(imageUrl,userAgent,session):
+    maxImageWidth = 2000
     print(f'fetching {imageUrl}')
     headers = {
         'User-Agent':userAgent #required by imgur
