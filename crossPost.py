@@ -106,8 +106,8 @@ async def swapAndCrossPost(creds,originSub,destinationSub,crossCheckSub,isCross,
         else:
             postsMakeLimit = 2 if testing else 5
         print(f'starting {originSub.display_name} to {destinationSub.display_name}')
-        originPosts = originSub.hot(limit=postsSearchLimit)
-        destinationPosts = [post async for post in destinationSub.hot(limit=postsSearchLimit)]
+        originPosts = originSub.top('day',limit=postsSearchLimit)
+        destinationPosts = [post async for post in destinationSub.top('day',limit=postsSearchLimit)]
 
         crossPostedFileToOpen = anaglyphCrossPostedListName if isAnaglyph else sbsCrossPostedListName
         with open(crossPostedFileToOpen,'r') as file:
@@ -128,7 +128,7 @@ async def swapAndCrossPost(creds,originSub,destinationSub,crossCheckSub,isCross,
         
         if isAnaglyph and crossCheckSub is None == False:
             crossCheckedNonDuplicates = []
-            crossCheckPosts = [post async for post in crossCheckSub.hot(limit=postsSearchLimit)]
+            crossCheckPosts = [post async for post in crossCheckSub.top('day',limit=postsSearchLimit)]
             for eligiblePost in eligiblePosts:
                 duplicateFound = False
                 for crossCheckPost in crossCheckPosts:
