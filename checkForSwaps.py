@@ -84,9 +84,9 @@ async def main():
                         with open(swappedListName,'a') as file:
                             file.write(post.id+'\n')
 
-        # await checkForSwaps('crossview')
-        # await checkForSwaps('parallelview')
-        await checkForSwaps('test')
+        await checkForSwaps('crossview')
+        await checkForSwaps('parallelview')
+        # await checkForSwaps('test')
     except OSError as e:
         print(f"OSError caught: {e}")
         print(f"OSError number (errno): {e.errno}")
