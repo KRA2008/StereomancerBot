@@ -8,114 +8,142 @@ import asyncio
 from aiohttp import ClientSession
 from urllib.parse import urlparse
 import uuid
+from enum import Enum
 
-# testing = True
-testing = False
+testing = True
+# testing = False
 
-sbsCrossPostedListName = 'SbsCrossPosted.txt'
-anaglyphCrossPostedListName = 'AnaglyphCrossPosted.txt'
+crossPostedListName = 'CrossPosted.txt'
 credsFileName = 'creds.json'
 userAgent = 'windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)'
 
 
-async def processGalleryItem(ii,jj,item,destinationSub,session,convertedImages,extension,isCross,isAnaglyph):
+async def convertGalleryItem(item,session,sbsImages,anaglyphImages,wigglegramImages,extension,toSecondary,isCross):
     try:
-        tempFileName=f'temp/{uuid.uuid4()}{extension}'
+        tempFileBase=f'temp/{uuid.uuid4()}'
+
         imageUrl = f'https://i.redd.it/{item['media_id']}{extension}'
-        if isAnaglyph:
-            await stereoConvert.convertSbsToAnaglyph(imageUrl,tempFileName,userAgent,session,isCross)
-        else:
-            await stereoConvert.swapCrossParallel(imageUrl,tempFileName,userAgent,session)
-        if os.path.isfile(tempFileName) == False:
-            return
-        convertedImages.append({'image_path':tempFileName})
+
+        await stereoConvert.convert(imageUrl,tempFileBase,extension,userAgent,session,toSecondary,isCross)
+
+        if toSecondary:
+            sbsImages.append({'image_path':tempFileBase+'sbs'+extension})
+        anaglyphImages.append({'image_path':tempFileBase+'anaglyph'+extension})
+        wigglegramImages.append({'image_path':tempFileBase+'.gif'})
     except Exception as ex:
         print('processGalleryItems ex: ' + ex)
         pprint.pprint(vars(ex))
         raise
 
 
-async def processPost(ii,originalPost,originSub,destinationSub,session,isCross,isAnaglyph):
+async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,wigglegramSub,session,toSecondary,isCross):
     try:
-        print(f'{originalPost.title}, {originalPost.id}')
         # pprint.pprint(vars(originalPost))
 
+        print('converting ' + originalPost.title)
+        
         if hasattr(originalPost,'is_gallery') == False:
             f,extension = os.path.splitext(originalPost.url)
-            tempFileName=f'temp/{uuid.uuid4()}{extension}'
-            if isAnaglyph:
-                await stereoConvert.convertSbsToAnaglyph(originalPost.url,tempFileName,userAgent,session,isCross)
-            else:
-                await stereoConvert.swapCrossParallel(originalPost.url,tempFileName,userAgent,session)
-            if os.path.isfile(tempFileName) == False:
-                return
-            #TODO handle body text?
-            swappedPost = await destinationSub.submit_image(image_path=tempFileName,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18)
-            os.remove(tempFileName)
+            tempFileBase = f'temp/{uuid.uuid4()}'
+            await stereoConvert.convert(originalPost.url,tempFileBase,extension,userAgent,session,toSecondary,isCross)
+
+            async with asyncio.TaskGroup() as tg:
+                if toSecondary:
+                    secondaryTask = tg.create_task(secondarySub.submit_image(image_path=tempFileBase+'sbs'+extension,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
+                else:
+                    secondaryTask = None
+                anaglyphTask = tg.create_task(anaglyphSub.submit_image(image_path=tempFileBase+'anaglyph'+extension,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
+                wigglegramTask = tg.create_task(wigglegramSub.submit_image(image_path=tempFileBase+'.gif',title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
+
+            os.remove(tempFileBase+'sbs'+extension)
+            os.remove(tempFileBase+'anaglyph'+extension)
+            os.remove(tempFileBase+'.gif')
 
         else:
-            convertedImages = []
+            sbsImages = []
+            anaglyphImages = []
+            wigglegramImages = []
             previewUrl = originalPost.media_metadata[originalPost.gallery_data['items'][0]['media_id']]['p'][0]['u']
             baseUrl = urlparse(previewUrl).path
             f,extension = os.path.splitext(baseUrl)
             async with asyncio.TaskGroup() as tg:
-                _ = [tg.create_task(processGalleryItem(ii,jj,item,destinationSub,session,convertedImages,extension,isCross,isAnaglyph)) for jj,item in enumerate(originalPost.gallery_data['items'])]
+                _ = [tg.create_task(convertGalleryItem(item,session,sbsImages,anaglyphImages,wigglegramImages,extension,toSecondary,isCross)) for item in originalPost.gallery_data['items']]
 
-            #TODO handle body text?
-            swappedPost = await destinationSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=convertedImages,nsfw=originalPost.over_18)
 
-            for image in convertedImages:
+            async with asyncio.TaskGroup() as tg:
+                if toSecondary:
+                    secondaryTask = tg.create_task(secondarySub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=sbsImages,nsfw=originalPost.over_18))
+                anaglyphTask = tg.create_task(anaglyphSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=anaglyphImages,nsfw=originalPost.over_18))
+                wigglegramTask = tg.create_task(wigglegramSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=wigglegramImages,nsfw=originalPost.over_18))
+
+            for image in sbsImages:
                 os.remove(image['image_path'])
 
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(swappedPost.reply("Original post: " + originalPost.permalink + " by [" + originalPost.author.name + "](https://reddit.com/user/" + originalPost.author.name + ")"+
-                            "\r\n\r\n" +
-                            "I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) " +
-                            "I convert posts between viewing methods and repost them between subs. " +
-                            "Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions."))
-            tg.create_task(originalPost.reply("I'm a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I've converted this post to r/" + destinationSub.display_name + " and you can see that here: " + swappedPost.permalink))
+        print('converted ' + originalPost.title)
 
-            if testing:
-                print('processed ' + originalPost.id + ' in testing mode')
-            else:
-                fileToOpen = anaglyphCrossPostedListName if isAnaglyph else sbsCrossPostedListName
-                with open(fileToOpen,'a') as file:
-                    file.write(originalPost.id+'\n')
+        swap = secondaryTask.result()
+        anaglyph = anaglyphTask.result()
+        wigglegram = wigglegramTask.result()
+
+        originComment = f'I\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I\'ve converted this post to:'
+        if toSecondary:
+            originComment+= f'\r\n\r\n{swap.permalink}'
+        originComment+= f'\r\n\r\n{anaglyph.permalink}'
+        originComment+= f'\r\n\r\n{wigglegram.permalink}'
+
+        conversionComment = f'Original post: {originalPost.permalink} by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name})\r\n\r\nI\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) I convert posts between viewing methods and repost them between subs. Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions.'
+        
+        async with asyncio.TaskGroup() as itg:
+            if swap is not None:
+                itg.create_task(swap.reply(conversionComment))
+            itg.create_task(anaglyph.reply(conversionComment))
+            itg.create_task(wigglegram.reply(conversionComment))
+            itg.create_task(originalPost.reply(originComment))
+        print('comments made for ' + originalPost.title)
+
+        if testing:
+            print('processed ' + originalPost.title + ' in testing mode')
+        else:
+            with open(crossPostedListName,'a') as file:
+                file.write(originalPost.id+'\n')
+
+
     except Exception as ex:
-        print('processPost ex: ' + str(ex))
+        print('convertAndSubmitPost ex: ' + str(ex))
         pprint.pprint(vars(ex))
         raise
-
-
-def duplicatesFilter(post,checkPosts):
-    for checkPost in checkPosts:
-        if doPostTitlesMatch(post,checkPost):
-            return True
-    return False
 
 
 def doPostTitlesMatch(post1,post2):
     return SequenceMatcher(None, post1.title, post2.title).ratio() > 0.8
 
 
-async def swapAndCrossPost(creds,originSub,destinationSub,crossCheckSub,isCross,isAnaglyph):
+async def checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session,isCross,secondaryPosts):
+    try:
+        duplicateFound = False
+        async for secondaryPost in secondaryPosts:
+            if doPostTitlesMatch(originalPost,secondaryPost):
+                duplicateFound = True
+                break
+        await convertAndSubmitPost(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session, duplicateFound == False,isCross)
+    except Exception as ex:
+        print('checkForDuplicatesAndInitiateConversions ex: ' + str(ex))
+        pprint.pprint(vars(ex))
+        raise
+
+async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,wigglegramSub,isCross):
     try:
         postsSearchLimit = 100
-        if isAnaglyph:
-            postsMakeLimit = 1 if testing else 3
-        else:
-            postsMakeLimit = 2 if testing else 5
-        print(f'starting {originSub.display_name} to {destinationSub.display_name}')
-        originPosts = originSub.top('day',limit=postsSearchLimit)
-        destinationPosts = [post async for post in destinationSub.top('day',limit=postsSearchLimit)]
+        postsMakeLimit = 3
+        primaryPosts = primarySub.top('day',limit=postsSearchLimit)
+        secondaryPosts = secondarySub.top('day',limit=postsSearchLimit)
 
-        crossPostedFileToOpen = anaglyphCrossPostedListName if isAnaglyph else sbsCrossPostedListName
-        with open(crossPostedFileToOpen,'r') as file:
+        with open(crossPostedListName,'r') as file:
             crossPosted = file.read()
 
-        optedOutList = creds['AnaglyphOptedOutUsers'] if isAnaglyph else creds['SbsOptedOutUsers']
+        optedOutList = creds['OptedOutUsers']
 
-        eligiblePosts = [post async for post in originPosts 
+        primaryPosts = [post async for post in primaryPosts 
                         if post.is_video == False and                          #keep videos out for now
                         hasattr(post,'is_gallery') == False and #TODO: upgrade to fix this bug
                         (post.url.endswith('.jpeg') or
@@ -125,40 +153,24 @@ async def swapAndCrossPost(creds,originSub,destinationSub,crossCheckSub,isCross,
                         post.author.name not in optedOutList and
                         post.author.name != 'StereomancerBot' and
                         post.upvote_ratio > 0.75] #TODO: filter out old stuff too
-        
-        if isAnaglyph and crossCheckSub is None == False:
-            crossCheckedNonDuplicates = []
-            crossCheckPosts = [post async for post in crossCheckSub.top('day',limit=postsSearchLimit)]
-            for eligiblePost in eligiblePosts:
-                duplicateFound = False
-                for crossCheckPost in crossCheckPosts:
-                    if doPostTitlesMatch(eligiblePost, crossCheckPost):
-                        duplicateFound = True
-                        if eligiblePost.created_utc < crossCheckPost.created_utc:
-                            crossCheckedNonDuplicates.append(eligiblePost)
-                        break
-                if duplicateFound == False:
-                    crossCheckedNonDuplicates.append(eligiblePost)
 
-            eligiblePosts = crossCheckedNonDuplicates
-        else:
-            eligiblePosts = [post for post in eligiblePosts
-                            if duplicatesFilter(post,destinationPosts) == False]
-        
-        print(f'found {len(eligiblePosts)} eligible posts in {originSub.display_name} to {destinationSub.display_name}')
+        print(f'found {len(primaryPosts)} eligible posts from {primarySub.display_name}')
 
-        eligiblePosts = eligiblePosts[:postsMakeLimit]
-        print(f'converting {len(eligiblePosts)} posts from {originSub.display_name} to {destinationSub.display_name}')
+        primaryPosts = primaryPosts[:postsMakeLimit]
+
+        print(f'converting {len(primaryPosts)} from {primarySub.display_name}')
+
         async with ClientSession() as session:
             async with asyncio.TaskGroup() as tg:
-                _ = [tg.create_task(processPost(ii,originalPost,originSub,destinationSub,session,isCross,isAnaglyph)) for ii,originalPost in enumerate(eligiblePosts)]
+                _ = [tg.create_task(checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session,isCross,secondaryPosts)) for originalPost in primaryPosts]
+                
     except Exception as ex:
-        print('swapAndCross ex: ' + str(ex))
+        print('convertAndCrossPost ex: ' + str(ex))
         pprint.pprint(vars(ex))
         raise
 
 
-async def crossPost():
+async def main():
     try:
         with open(credsFileName,'r') as file:
             creds = json.load(file)
@@ -172,27 +184,29 @@ async def crossPost():
         ) as reddit:
             
             if testing:
-                first='test'
-                second='u_StereomancerBot'
-                third='notcrossview'
+                crossview='test'
+                parallelview='u_StereomancerBot'
+                anaglyph='notcrossview'
+                wigglegrams='crappysoftwaredesign'
             else:
-                first='crossview'
-                second='parallelview'
-                third='anaglyph'
+                crossview='crossview'
+                parallelview='parallelview'
+                anaglyph='anaglyph'
+                wigglegrams='wigglegrams'
 
             async with asyncio.TaskGroup() as tg:
-                firstSubredditTask = tg.create_task(reddit.subreddit(first))
-                secondSubredditTask = tg.create_task(reddit.subreddit(second))
-                thirdSubredditTask = tg.create_task(reddit.subreddit(third))
-            firstSubreddit = firstSubredditTask.result()
-            secondSubreddit = secondSubredditTask.result()
-            thirdSubreddit = thirdSubredditTask.result()
+                crossviewSubredditTask = tg.create_task(reddit.subreddit(crossview))
+                parallelviewSubredditTask = tg.create_task(reddit.subreddit(parallelview))
+                anaglyphSubredditTask = tg.create_task(reddit.subreddit(anaglyph))
+                wigglegramSubredditTask = tg.create_task(reddit.subreddit(wigglegrams))
+            crossviewSubreddit = crossviewSubredditTask.result()
+            parallelviewSubreddit = parallelviewSubredditTask.result()
+            anaglyphSubreddit = anaglyphSubredditTask.result()
+            wigglegramSubreddit = wigglegramSubredditTask.result()
 
             async with asyncio.TaskGroup() as tg:
-                tg.create_task(swapAndCrossPost(creds,firstSubreddit,secondSubreddit,None,True,False))
-                tg.create_task(swapAndCrossPost(creds,secondSubreddit,firstSubreddit,None,False,False))
-                tg.create_task(swapAndCrossPost(creds,firstSubreddit,thirdSubreddit,secondSubreddit,True,True))
-                tg.create_task(swapAndCrossPost(creds,secondSubreddit,thirdSubreddit,firstSubreddit,False,True))
+                tg.create_task(convertAndCrossPost(creds,crossviewSubreddit,parallelviewSubreddit,anaglyphSubreddit,wigglegramSubreddit,True))
+                tg.create_task(convertAndCrossPost(creds,parallelviewSubreddit,crossviewSubreddit,anaglyphSubreddit,wigglegramSubreddit,False))
 
     except OSError as e:
         print(f"OSError caught: {e}")
@@ -203,4 +217,4 @@ async def crossPost():
         print(f"Error caught: {e}")
         pprint.pprint(vars(e))
 
-asyncio.run(crossPost())
+asyncio.run(main())
