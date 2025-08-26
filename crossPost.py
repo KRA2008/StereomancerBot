@@ -6,12 +6,11 @@ import stereoConvert
 import os
 import asyncio
 from aiohttp import ClientSession
-from urllib.parse import urlparse
 import uuid
-from enum import Enum
+from urllib.parse import urljoin, urlparse
 
-testing = True
-# testing = False
+# testing = True
+testing = False
 
 crossPostedListName = 'CrossPosted.txt'
 credsFileName = 'creds.json'
@@ -43,7 +42,8 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
         print('converting ' + originalPost.title)
         
         if hasattr(originalPost,'is_gallery') == False:
-            f,extension = os.path.splitext(originalPost.url)
+            baseUrl = urlparse(originalPost.url).path
+            f,extension = os.path.splitext(baseUrl)
             tempFileBase = f'temp/{uuid.uuid4()}'
             await stereoConvert.convert(originalPost.url,tempFileBase,extension,userAgent,session,toSecondary,isCross)
 
@@ -87,11 +87,12 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
 
         originComment = f'I\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I\'ve converted this post to:'
         if toSecondary:
-            originComment+= f'\r\n\r\n{swap.permalink}'
-        originComment+= f'\r\n\r\n{anaglyph.permalink}'
-        originComment+= f'\r\n\r\n{wigglegram.permalink}'
+            sbsSub = 'parallelview' if isCross else 'crossview'
+            originComment+= f'\r\n\r\n[{sbsSub}]({swap.permalink})'
+        originComment+= f'\r\n\r\n[anaglyph]({anaglyph.permalink})'
+        originComment+= f'\r\n\r\n[wigglegram]({wigglegram.permalink})'
 
-        conversionComment = f'Original post: {originalPost.permalink} by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name})\r\n\r\nI\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) I convert posts between viewing methods and repost them between subs. Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions.'
+        conversionComment = f'[Original post]({originalPost.permalink}) by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name})\r\n\r\nI\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) I convert posts between viewing methods and repost them between subs. Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions.'
         
         async with asyncio.TaskGroup() as itg:
             if swap is not None:
@@ -146,9 +147,9 @@ async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,wigglegr
         primaryPosts = [post async for post in primaryPosts 
                         if post.is_video == False and                          #keep videos out for now
                         hasattr(post,'is_gallery') == False and #TODO: upgrade to fix this bug
-                        (post.url.endswith('.jpeg') or
-                        post.url.endswith('.png') or
-                        post.url.endswith('.jpg')) and
+                        ('.jpeg' in post.url or
+                        '.png' in post.url or
+                        '.jpg' in post.url) and
                         post.id not in crossPosted and 
                         post.author.name not in optedOutList and
                         post.author.name != 'StereomancerBot' and
