@@ -136,8 +136,8 @@ async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,wigglegr
     try:
         postsSearchLimit = 100
         postsMakeLimit = 3
-        primaryPosts = primarySub.top('day',limit=postsSearchLimit)
-        secondaryPosts = secondarySub.top('day',limit=postsSearchLimit)
+        primaryPosts = primarySub.top('week',limit=postsSearchLimit)
+        secondaryPosts = secondarySub.top('week',limit=postsSearchLimit)
 
         with open(crossPostedListName,'r') as file:
             crossPosted = file.read()
