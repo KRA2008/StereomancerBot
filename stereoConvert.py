@@ -22,24 +22,34 @@ async def downloadAndDownsizeImage(imageUrl,userAgent,session):
     return downloadedImage
 
 
-async def convert(imageUrl,imageBasePath,extension,userAgent,session,toSecondary,isCross):
+async def convertAndSaveToAllFormats(imageUrl,imageBasePath,extension,userAgent,session,toSecondary,isCross):
     originalImage = await downloadAndDownsizeImage(imageUrl,userAgent,session)
-    
-    # sbs
     if toSecondary:
-        swappedImage = Image.new(mode=originalImage.mode,size=originalImage.size)
+        swapCrossParallel(originalImage,imageBasePath,extension)
+    convertSbsToAnaglyph(originalImage,imageBasePath,extension,isCross)
+    convertSbsToWigglegram(originalImage,imageBasePath)
 
-        leftStart = (int(originalImage.width/-2),0)
-        rightStart = (int(originalImage.width/2),0)
-        swappedImage.paste(originalImage,leftStart)
-        swappedImage.paste(originalImage,rightStart)
 
-        if swappedImage.mode in ('RGBA','P'):
-            swappedImage = swappedImage.convert('RGB')
+async def downloadAndSwapSides(imageUrl,imageBasePath,extension,userAgent,session):
+    originalImage = await downloadAndDownsizeImage(imageUrl,userAgent,session)
+    swapCrossParallel(originalImage,imageBasePath,extension)
 
-        swappedImage.save(imageBasePath+'sbs'+extension)
-    
-    # anaglyph
+
+async def swapCrossParallel(originalImage,destinationBasePath,extension):
+    swappedImage = Image.new(mode=originalImage.mode,size=originalImage.size)
+
+    leftStart = (int(originalImage.width/-2),0)
+    rightStart = (int(originalImage.width/2),0)
+    swappedImage.paste(originalImage,leftStart)
+    swappedImage.paste(originalImage,rightStart)
+
+    if swappedImage.mode in ('RGBA','P'):
+        swappedImage = swappedImage.convert('RGB')
+
+    swappedImage.save(destinationBasePath+'sbs'+extension)
+
+
+async def convertSbsToAnaglyph(originalImage,destinationBasePath,extension,isCross):
     anaglyphWidth = originalImage.width/2
     side1 = Image.new('RGB',(int(anaglyphWidth),originalImage.height))
     side2 = Image.new('RGB',(int(anaglyphWidth),originalImage.height))
@@ -55,9 +65,10 @@ async def convert(imageUrl,imageBasePath,extension,userAgent,session,toSecondary
     else:
         anaglyphImage = Image.merge('RGB',(r1,g2,b2))
 
-    anaglyphImage.save(imageBasePath+'anaglyph'+extension)
+    anaglyphImage.save(destinationBasePath+'anaglyph'+extension)
 
-    # wigglegram
+
+async def convertSbsToWigglegram(originalImage,destinationBasePath):
     wigglegramWidth = originalImage.width/2
     frame1 = Image.new('RGB',(int(wigglegramWidth),originalImage.height))
     frame2 = Image.new('RGB',(int(wigglegramWidth),originalImage.height))
@@ -65,57 +76,4 @@ async def convert(imageUrl,imageBasePath,extension,userAgent,session,toSecondary
     frame1.paste(originalImage,(0,0))
     frame2.paste(originalImage,(int(-wigglegramWidth),0))
 
-    frame1.save(imageBasePath+'.gif', save_all=True, append_images=[frame2], duration=150, loop=0)
-
-
-async def swapCrossParallel(imageUrl,imagePath,userAgent,session):
-    originalImage = await downloadAndDownsizeImage(imageUrl,userAgent,session)
-
-    swappedImage = Image.new(mode=originalImage.mode,size=originalImage.size)
-
-    leftStart = (int(originalImage.width/-2),0)
-    rightStart = (int(originalImage.width/2),0)
-    swappedImage.paste(originalImage,leftStart)
-    swappedImage.paste(originalImage,rightStart)
-
-    if swappedImage.mode in ('RGBA','P'):
-        swappedImage = swappedImage.convert('RGB')
-
-    swappedImage.save(imagePath)
-    print(f'saved {imagePath}')
-
-
-async def convertSbsToAnaglyph(imageUrl,imagePath,userAgent,session,isCross):
-    originalImage = await downloadAndDownsizeImage(imageUrl,userAgent,session)
-    
-    newImageWidth = originalImage.width/2
-    image1 = Image.new('RGB',(int(newImageWidth),originalImage.height))
-    image2 = Image.new('RGB',(int(newImageWidth),originalImage.height))
-
-    image1.paste(originalImage,(0,0))
-    r1,g1,b1 = image1.split()
-
-    image2.paste(originalImage,(int(-newImageWidth),0))
-    r2,g2,b2 = image2.split()
-
-    if isCross:
-        newImage = Image.merge('RGB',(r2,g1,b1))
-    else:
-        newImage = Image.merge('RGB',(r1,g2,b2))
-
-    newImage.save(imagePath)
-    print(f'saved {imagePath}')
-
-
-async def convertSbsToWigglegram(imageUrl,imagePath,userAgent,session,isCross):
-    originalImage = await downloadAndDownsizeImage(imageUrl,userAgent,session)
-    
-    newImageWidth = originalImage.width/2
-    image1 = Image.new('RGB',(int(newImageWidth),originalImage.height))
-    image2 = Image.new('RGB',(int(newImageWidth),originalImage.height))
-
-    image1.paste(originalImage,(0,0))
-    image2.paste(originalImage,(int(-newImageWidth),0))
-
-    image1.save("out.gif", save_all=True, append_images=[image2], duration=150, loop=0)
-    print(f'saved {imagePath}')
+    frame1.save(destinationBasePath+'.gif', save_all=True, append_images=[frame2], duration=150, loop=0)

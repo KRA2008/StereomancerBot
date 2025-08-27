@@ -23,7 +23,7 @@ async def convertGalleryItem(item,session,sbsImages,anaglyphImages,wigglegramIma
 
         imageUrl = f'https://i.redd.it/{item['media_id']}{extension}'
 
-        await stereoConvert.convert(imageUrl,tempFileBase,extension,userAgent,session,toSecondary,isCross)
+        await stereoConvert.convertAndSaveToAllFormats(imageUrl,tempFileBase,extension,userAgent,session,toSecondary,isCross)
 
         if toSecondary:
             sbsImages.append({'image_path':tempFileBase+'sbs'+extension})
@@ -45,7 +45,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
             baseUrl = urlparse(originalPost.url).path
             f,extension = os.path.splitext(baseUrl)
             tempFileBase = f'temp/{uuid.uuid4()}'
-            await stereoConvert.convert(originalPost.url,tempFileBase,extension,userAgent,session,toSecondary,isCross)
+            await stereoConvert.convertAndSaveToAllFormats(originalPost.url,tempFileBase,extension,userAgent,session,toSecondary,isCross)
 
             async with asyncio.TaskGroup() as tg:
                 if toSecondary:
