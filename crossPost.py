@@ -53,7 +53,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
                 else:
                     secondaryTask = None
                 anaglyphTask = tg.create_task(anaglyphSub.submit_image(image_path=tempFileBase+'anaglyph'+extension,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
-                wigglegramTask = tg.create_task(wigglegramSub.submit_image(image_path=tempFileBase+'.gif',title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
+                #wigglegramTask = tg.create_task(wigglegramSub.submit_image(image_path=tempFileBase+'.gif',title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
 
             os.remove(tempFileBase+'sbs'+extension)
             os.remove(tempFileBase+'anaglyph'+extension)
@@ -74,7 +74,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
                 if toSecondary:
                     secondaryTask = tg.create_task(secondarySub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=sbsImages,nsfw=originalPost.over_18))
                 anaglyphTask = tg.create_task(anaglyphSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=anaglyphImages,nsfw=originalPost.over_18))
-                wigglegramTask = tg.create_task(wigglegramSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=wigglegramImages,nsfw=originalPost.over_18))
+                #wigglegramTask = tg.create_task(wigglegramSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=wigglegramImages,nsfw=originalPost.over_18))
 
             for image in sbsImages:
                 os.remove(image['image_path'])
@@ -83,14 +83,14 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
 
         swap = secondaryTask.result()
         anaglyph = anaglyphTask.result()
-        wigglegram = wigglegramTask.result()
+        #wigglegram = wigglegramTask.result()
 
         originComment = f'I\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I\'ve converted this post to:'
         if toSecondary:
             sbsSub = 'parallelview' if isCross else 'crossview'
             originComment+= f'\r\n\r\n[{sbsSub}]({swap.permalink})'
         originComment+= f'\r\n\r\n[anaglyph]({anaglyph.permalink})'
-        originComment+= f'\r\n\r\n[wigglegram]({wigglegram.permalink})'
+        #originComment+= f'\r\n\r\n[wigglegram]({wigglegram.permalink})'
 
         conversionComment = f'[Original post]({originalPost.permalink}) by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name})\r\n\r\nI\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) I convert posts between viewing methods and repost them between subs. Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions.'
         
@@ -98,7 +98,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
             if swap is not None:
                 itg.create_task(swap.reply(conversionComment))
             itg.create_task(anaglyph.reply(conversionComment))
-            itg.create_task(wigglegram.reply(conversionComment))
+            #itg.create_task(wigglegram.reply(conversionComment))
             itg.create_task(originalPost.reply(originComment))
         print('comments made for ' + originalPost.title)
 
