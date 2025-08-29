@@ -17,16 +17,15 @@ credsFileName = 'creds.json'
 userAgent = 'windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)'
 
 
-async def convertGalleryItem(item,session,sbsImages,anaglyphImages,wigglegramImages,extension,toSecondary,isCross):
+async def convertGalleryItem(item,session,sbsImages,anaglyphImages,wigglegramImages,extension,isCross):
     try:
         tempFileBase=f'temp/{uuid.uuid4()}'
 
         imageUrl = f'https://i.redd.it/{item['media_id']}{extension}'
 
-        await stereoConvert.convertAndSaveToAllFormats(imageUrl,tempFileBase,extension,userAgent,session,toSecondary,isCross)
+        await stereoConvert.convertAndSaveToAllFormats(imageUrl,tempFileBase,extension,userAgent,session,isCross)
 
-        if toSecondary:
-            sbsImages.append({'image_path':tempFileBase+'sbs'+extension})
+        sbsImages.append({'image_path':tempFileBase+'sbs'+extension})
         anaglyphImages.append({'image_path':tempFileBase+'anaglyph'+extension})
         wigglegramImages.append({'image_path':tempFileBase+'.gif'})
     except Exception as ex:
@@ -40,24 +39,29 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
         # pprint.pprint(vars(originalPost))
 
         print('converting ' + originalPost.title)
+
+        isFirstOrOnlyVersion = True
+        if (not toSecondary) and (not isCross): # the post is in both cross and parallel, so don't convert the parallel version too
+            isFirstOrOnlyVersion = False
         
         if hasattr(originalPost,'is_gallery') == False:
             baseUrl = urlparse(originalPost.url).path
             f,extension = os.path.splitext(baseUrl)
             tempFileBase = f'temp/{uuid.uuid4()}'
-            await stereoConvert.convertAndSaveToAllFormats(originalPost.url,tempFileBase,extension,userAgent,session,toSecondary,isCross)
+            await stereoConvert.convertAndSaveToAllFormats(originalPost.url,tempFileBase,extension,userAgent,session,isCross)
 
             async with asyncio.TaskGroup() as tg:
                 if toSecondary:
                     secondaryTask = tg.create_task(secondarySub.submit_image(image_path=tempFileBase+'sbs'+extension,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
-                else:
-                    secondaryTask = None
-                anaglyphTask = tg.create_task(anaglyphSub.submit_image(image_path=tempFileBase+'anaglyph'+extension,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
-                #wigglegramTask = tg.create_task(wigglegramSub.submit_image(image_path=tempFileBase+'.gif',title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
-
-            os.remove(tempFileBase+'sbs'+extension)
-            os.remove(tempFileBase+'anaglyph'+extension)
-            os.remove(tempFileBase+'.gif')
+                if isFirstOrOnlyVersion:
+                    anaglyphTask = tg.create_task(anaglyphSub.submit_image(image_path=tempFileBase+'anaglyph'+extension,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
+                    #wigglegramTask = tg.create_task(wigglegramSub.submit_image(image_path=tempFileBase+'.gif',title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
+            try:
+                os.remove(tempFileBase+'sbs'+extension)
+                os.remove(tempFileBase+'anaglyph'+extension)
+                os.remove(tempFileBase+'.gif')
+            except Exception as e:
+                print('error while removing: ' + str(e))
 
         else:
             sbsImages = []
@@ -67,38 +71,50 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
             baseUrl = urlparse(previewUrl).path
             f,extension = os.path.splitext(baseUrl)
             async with asyncio.TaskGroup() as tg:
-                _ = [tg.create_task(convertGalleryItem(item,session,sbsImages,anaglyphImages,wigglegramImages,extension,toSecondary,isCross)) for item in originalPost.gallery_data['items']]
+                _ = [tg.create_task(convertGalleryItem(item,session,sbsImages,anaglyphImages,wigglegramImages,extension,isCross)) for item in originalPost.gallery_data['items']]
 
 
             async with asyncio.TaskGroup() as tg:
                 if toSecondary:
                     secondaryTask = tg.create_task(secondarySub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=sbsImages,nsfw=originalPost.over_18))
-                anaglyphTask = tg.create_task(anaglyphSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=anaglyphImages,nsfw=originalPost.over_18))
-                #wigglegramTask = tg.create_task(wigglegramSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=wigglegramImages,nsfw=originalPost.over_18))
+                if isFirstOrOnlyVersion:
+                    anaglyphTask = tg.create_task(anaglyphSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=anaglyphImages,nsfw=originalPost.over_18))
+                    #wigglegramTask = tg.create_task(wigglegramSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=wigglegramImages,nsfw=originalPost.over_18))
 
-            for image in sbsImages:
-                os.remove(image['image_path'])
+            try:
+                for image in sbsImages:
+                    os.remove(image['image_path'])
+                for image in anaglyphImages:
+                    os.remove(image['image_path'])
+                for image in wigglegramImages:
+                    os.remove(image['image_path'])
+            except Exception as ex:
+                print('error removing albums: ' + str(ex))
 
         print('converted ' + originalPost.title)
 
-        swap = secondaryTask.result()
-        anaglyph = anaglyphTask.result()
-        #wigglegram = wigglegramTask.result()
+        if toSecondary:
+            swap = secondaryTask.result()
+        if isFirstOrOnlyVersion:
+            anaglyph = anaglyphTask.result()
+            #wigglegram = wigglegramTask.result()
 
         originComment = f'I\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I\'ve converted this post to:'
         if toSecondary:
             sbsSub = 'parallelview' if isCross else 'crossview'
             originComment+= f'\r\n\r\n[{sbsSub}]({swap.permalink})'
-        originComment+= f'\r\n\r\n[anaglyph]({anaglyph.permalink})'
-        #originComment+= f'\r\n\r\n[wigglegram]({wigglegram.permalink})'
+        if isFirstOrOnlyVersion:
+            originComment+= f'\r\n\r\n[anaglyph]({anaglyph.permalink})'
+            #originComment+= f'\r\n\r\n[wigglegram]({wigglegram.permalink})'
 
         conversionComment = f'[Original post]({originalPost.permalink}) by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name})\r\n\r\nI\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) I convert posts between viewing methods and repost them between subs. Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions.'
         
         async with asyncio.TaskGroup() as itg:
-            if swap is not None:
+            if toSecondary:
                 itg.create_task(swap.reply(conversionComment))
-            itg.create_task(anaglyph.reply(conversionComment))
-            #itg.create_task(wigglegram.reply(conversionComment))
+            if isFirstOrOnlyVersion:
+                itg.create_task(anaglyph.reply(conversionComment))
+                #itg.create_task(wigglegram.reply(conversionComment))
             itg.create_task(originalPost.reply(originComment))
         print('comments made for ' + originalPost.title)
 
@@ -185,9 +201,9 @@ async def main():
         ) as reddit:
             
             if testing:
-                crossview='test'
+                crossview='crossview'
                 parallelview='u_StereomancerBot'
-                anaglyph='notcrossview'
+                anaglyph='u_StereomancerBot'
                 wigglegrams='crappysoftwaredesign'
             else:
                 crossview='crossview'

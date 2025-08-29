@@ -22,10 +22,9 @@ async def downloadAndDownsizeImage(imageUrl,userAgent,session):
     return downloadedImage
 
 
-async def convertAndSaveToAllFormats(imageUrl,imageBasePath,extension,userAgent,session,toSecondary,isCross):
+async def convertAndSaveToAllFormats(imageUrl,imageBasePath,extension,userAgent,session,isCross):
     originalImage = await downloadAndDownsizeImage(imageUrl,userAgent,session)
-    if toSecondary:
-        swapCrossParallel(originalImage,imageBasePath,extension)
+    swapCrossParallel(originalImage,imageBasePath,extension)
     convertSbsToAnaglyph(originalImage,imageBasePath,extension,isCross)
     convertSbsToWigglegram(originalImage,imageBasePath)
 
@@ -35,7 +34,7 @@ async def downloadAndSwapSides(imageUrl,imageBasePath,extension,userAgent,sessio
     swapCrossParallel(originalImage,imageBasePath,extension)
 
 
-async def swapCrossParallel(originalImage,destinationBasePath,extension):
+def swapCrossParallel(originalImage,destinationBasePath,extension):
     swappedImage = Image.new(mode=originalImage.mode,size=originalImage.size)
 
     leftStart = (int(originalImage.width/-2),0)
@@ -49,7 +48,7 @@ async def swapCrossParallel(originalImage,destinationBasePath,extension):
     swappedImage.save(destinationBasePath+'sbs'+extension)
 
 
-async def convertSbsToAnaglyph(originalImage,destinationBasePath,extension,isCross):
+def convertSbsToAnaglyph(originalImage,destinationBasePath,extension,isCross):
     anaglyphWidth = originalImage.width/2
     side1 = Image.new('RGB',(int(anaglyphWidth),originalImage.height))
     side2 = Image.new('RGB',(int(anaglyphWidth),originalImage.height))
@@ -68,7 +67,7 @@ async def convertSbsToAnaglyph(originalImage,destinationBasePath,extension,isCro
     anaglyphImage.save(destinationBasePath+'anaglyph'+extension)
 
 
-async def convertSbsToWigglegram(originalImage,destinationBasePath):
+def convertSbsToWigglegram(originalImage,destinationBasePath):
     wigglegramWidth = originalImage.width/2
     frame1 = Image.new('RGB',(int(wigglegramWidth),originalImage.height))
     frame2 = Image.new('RGB',(int(wigglegramWidth),originalImage.height))
