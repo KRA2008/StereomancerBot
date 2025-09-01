@@ -15,6 +15,8 @@ testing = False
 crossPostedListName = 'CrossPosted.txt'
 credsFileName = 'creds.json'
 userAgent = 'windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)'
+postsSearchLimit = 100
+postsMakeLimit = 3
 
 
 async def convertGalleryItem(item,session,sbsImages,anaglyphImages,wigglegramImages,extension,isCross):
@@ -34,15 +36,15 @@ async def convertGalleryItem(item,session,sbsImages,anaglyphImages,wigglegramIma
         raise
 
 
-async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,wigglegramSub,session,toSecondary,isCross):
+async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,wigglegramSub,session,secondaryDuplicateFound,anaglyphDuplicateFound,isCross):
     try:
         # pprint.pprint(vars(originalPost))
 
         print('converting ' + originalPost.title)
 
-        isFirstOrOnlyVersion = True
-        if (not toSecondary) and (not isCross): # the post is in both cross and parallel, so don't convert the parallel version too
-            isFirstOrOnlyVersion = False
+        doAnaglyphConversion = True
+        if (secondaryDuplicateFound and not isCross) or anaglyphDuplicateFound:
+            doAnaglyphConversion = False
         
         if hasattr(originalPost,'is_gallery') == False:
             baseUrl = urlparse(originalPost.url).path
@@ -51,9 +53,9 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
             await stereoConvert.convertAndSaveToAllFormats(originalPost.url,tempFileBase,extension,userAgent,session,isCross)
 
             async with asyncio.TaskGroup() as tg:
-                if toSecondary:
+                if not secondaryDuplicateFound:
                     secondaryTask = tg.create_task(secondarySub.submit_image(image_path=tempFileBase+'sbs'+extension,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
-                if isFirstOrOnlyVersion:
+                if doAnaglyphConversion:
                     anaglyphTask = tg.create_task(anaglyphSub.submit_image(image_path=tempFileBase+'anaglyph'+extension,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
                     #wigglegramTask = tg.create_task(wigglegramSub.submit_image(image_path=tempFileBase+'.gif',title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
             try:
@@ -75,9 +77,9 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
 
 
             async with asyncio.TaskGroup() as tg:
-                if toSecondary:
+                if not secondaryDuplicateFound:
                     secondaryTask = tg.create_task(secondarySub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=sbsImages,nsfw=originalPost.over_18))
-                if isFirstOrOnlyVersion:
+                if doAnaglyphConversion:
                     anaglyphTask = tg.create_task(anaglyphSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=anaglyphImages,nsfw=originalPost.over_18))
                     #wigglegramTask = tg.create_task(wigglegramSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=wigglegramImages,nsfw=originalPost.over_18))
 
@@ -93,26 +95,26 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
 
         print('converted ' + originalPost.title)
 
-        if toSecondary:
+        if not secondaryDuplicateFound:
             swap = secondaryTask.result()
-        if isFirstOrOnlyVersion:
+        if doAnaglyphConversion:
             anaglyph = anaglyphTask.result()
             #wigglegram = wigglegramTask.result()
 
         originComment = f'I\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I\'ve converted this post to:'
-        if toSecondary:
+        if not secondaryDuplicateFound:
             sbsSub = 'parallelview' if isCross else 'crossview'
             originComment+= f'\r\n\r\n[{sbsSub}]({swap.permalink})'
-        if isFirstOrOnlyVersion:
+        if doAnaglyphConversion:
             originComment+= f'\r\n\r\n[anaglyph]({anaglyph.permalink})'
             #originComment+= f'\r\n\r\n[wigglegram]({wigglegram.permalink})'
 
         conversionComment = f'[Original post]({originalPost.permalink}) by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name})\r\n\r\nI\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) I convert posts between viewing methods and repost them between subs. Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions.'
         
         async with asyncio.TaskGroup() as itg:
-            if toSecondary:
+            if not secondaryDuplicateFound:
                 itg.create_task(swap.reply(conversionComment))
-            if isFirstOrOnlyVersion:
+            if doAnaglyphConversion:
                 itg.create_task(anaglyph.reply(conversionComment))
                 #itg.create_task(wigglegram.reply(conversionComment))
             itg.create_task(originalPost.reply(originComment))
@@ -135,14 +137,23 @@ def doPostTitlesMatch(post1,post2):
     return SequenceMatcher(None, post1.title, post2.title).ratio() > 0.8
 
 
-async def checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session,isCross,secondaryPosts):
+async def checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session,isCross):
     try:
-        duplicateFound = False
+        secondaryPosts = secondarySub.new(limit=postsSearchLimit)
+        anaglyphPosts = anaglyphSub.new(limit=postsSearchLimit)
+
+        secondaryDuplicateFound = False
         async for secondaryPost in secondaryPosts:
             if doPostTitlesMatch(originalPost,secondaryPost):
-                duplicateFound = True
+                secondaryDuplicateFound = True
                 break
-        await convertAndSubmitPost(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session, duplicateFound == False,isCross)
+            
+        anaglyphDuplicateFound = False
+        async for anaglyphPost in anaglyphPosts:
+            if doPostTitlesMatch(originalPost,anaglyphPost):
+                anaglyphDuplicateFound = True
+                break
+        await convertAndSubmitPost(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session, secondaryDuplicateFound,anaglyphDuplicateFound,isCross)
     except Exception as ex:
         print('checkForDuplicatesAndInitiateConversions ex: ' + str(ex))
         pprint.pprint(vars(ex))
@@ -150,10 +161,7 @@ async def checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secon
 
 async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,wigglegramSub,isCross):
     try:
-        postsSearchLimit = 100
-        postsMakeLimit = 3
         primaryPosts = primarySub.top('week',limit=postsSearchLimit)
-        secondaryPosts = secondarySub.top('week',limit=postsSearchLimit)
 
         with open(crossPostedListName,'r') as file:
             crossPosted = file.read()
@@ -179,7 +187,7 @@ async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,wigglegr
 
         async with ClientSession() as session:
             async with asyncio.TaskGroup() as tg:
-                _ = [tg.create_task(checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session,isCross,secondaryPosts)) for originalPost in primaryPosts]
+                _ = [tg.create_task(checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session,isCross)) for originalPost in primaryPosts]
                 
     except Exception as ex:
         print('convertAndCrossPost ex: ' + str(ex))
