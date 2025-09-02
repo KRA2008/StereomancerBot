@@ -153,6 +153,10 @@ async def checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secon
             if doPostTitlesMatch(originalPost,anaglyphPost):
                 anaglyphDuplicateFound = True
                 break
+
+        if secondaryDuplicateFound and anaglyphDuplicateFound:
+            return
+        
         await convertAndSubmitPost(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session, secondaryDuplicateFound,anaglyphDuplicateFound,isCross)
     except Exception as ex:
         print('checkForDuplicatesAndInitiateConversions ex: ' + str(ex))
