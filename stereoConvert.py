@@ -75,4 +75,16 @@ def convertSbsToWigglegram(originalImage,destinationBasePath):
     frame1.paste(originalImage,(0,0))
     frame2.paste(originalImage,(int(-wigglegramWidth),0))
 
-    frame1.save(destinationBasePath+'.gif', save_all=True, append_images=[frame2], duration=150, loop=0)
+    frame1.save(destinationBasePath+'.gif', save_all=True, append_images=[frame2,frame1], duration=150, loop=0)
+
+
+def convertSbsToSeparate(originalImage,destinationBasePath,extension):
+    newWidth = originalImage.width/2
+    frame1 = Image.new('RGB',(int(newWidth),originalImage.height))
+    frame2 = Image.new('RGB',(int(newWidth),originalImage.height))
+
+    frame1.paste(originalImage,(0,0))
+    frame2.paste(originalImage,(int(-newWidth),0))
+
+    frame1.save(destinationBasePath+'1'+extension)
+    frame2.save(destinationBasePath+'2'+extension)

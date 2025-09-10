@@ -8,9 +8,10 @@ import asyncio
 from aiohttp import ClientSession
 import uuid
 from urllib.parse import urljoin, urlparse
+from dateutil.parser import parse
 
-# testing = True
-testing = False
+# isTesting = True
+isTesting = False
 
 crossPostedListName = 'CrossPosted.txt'
 credsFileName = 'creds.json'
@@ -120,7 +121,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
             itg.create_task(originalPost.reply(originComment))
         print('comments made for ' + originalPost.title)
 
-        if testing:
+        if isTesting:
             print('processed ' + originalPost.title + ' in testing mode')
         else:
             with open(crossPostedListName,'a') as file:
@@ -134,7 +135,21 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
 
 
 def doPostTitlesMatch(post1,post2):
-    return SequenceMatcher(None, post1.title, post2.title).ratio() > 0.8
+    titleLength = min(len(post1.title),len(post2.title))
+    threshold = titleLength/(3+titleLength) #plotted length against ratio while allowing ' (OC)' tacked on the end
+    matchRatio = SequenceMatcher(None, post1.title, post2.title).ratio()
+    if matchRatio > threshold:
+        try:
+            date1 = parse(post1.title, fuzzy=True)
+            date2 = parse(post2.title, fuzzy=True)
+            if date1 == date2: #allow fractals with date inside
+                return True
+            else:
+                return False
+        except Exception as ex:
+            return True
+    else:
+        return False
 
 
 async def checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session,isCross):
@@ -155,6 +170,9 @@ async def checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secon
                 break
 
         if secondaryDuplicateFound and anaglyphDuplicateFound:
+            return
+        
+        if secondaryDuplicateFound and not isCross:
             return
         
         await convertAndSubmitPost(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session, secondaryDuplicateFound,anaglyphDuplicateFound,isCross)
@@ -212,11 +230,11 @@ async def main():
             user_agent=userAgent
         ) as reddit:
             
-            if testing:
+            if isTesting:
                 crossview='crossview'
-                parallelview='u_StereomancerBot'
-                anaglyph='u_StereomancerBot'
-                wigglegrams='crappysoftwaredesign'
+                parallelview='parallelview'
+                anaglyph='anaglyph'
+                wigglegrams='wigglegrams'
             else:
                 crossview='crossview'
                 parallelview='parallelview'
