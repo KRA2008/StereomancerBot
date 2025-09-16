@@ -26,7 +26,7 @@ async def convertAndSaveToAllFormats(imageUrl,imageBasePath,extension,userAgent,
     originalImage = await downloadAndDownsizeImage(imageUrl,userAgent,session)
     swapCrossParallel(originalImage,imageBasePath,extension)
     convertSbsToAnaglyph(originalImage,imageBasePath,extension,isCross)
-    convertSbsToWigglegram(originalImage,imageBasePath)
+    #convertSbsToWigglegram(originalImage,imageBasePath)
 
 
 async def downloadAndSwapSides(imageUrl,imageBasePath,extension,userAgent,session):

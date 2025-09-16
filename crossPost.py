@@ -53,6 +53,8 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
             tempFileBase = f'temp/{uuid.uuid4()}'
             await stereoConvert.convertAndSaveToAllFormats(originalPost.url,tempFileBase,extension,userAgent,session,isCross)
 
+            print('converted ' + originalPost.title + ", submitting")
+
             async with asyncio.TaskGroup() as tg:
                 if not secondaryDuplicateFound:
                     secondaryTask = tg.create_task(secondarySub.submit_image(image_path=tempFileBase+'sbs'+extension,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
@@ -62,7 +64,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
             try:
                 os.remove(tempFileBase+'sbs'+extension)
                 os.remove(tempFileBase+'anaglyph'+extension)
-                os.remove(tempFileBase+'.gif')
+                #os.remove(tempFileBase+'.gif')
             except Exception as e:
                 print('error while removing: ' + str(e))
 
@@ -76,6 +78,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
             async with asyncio.TaskGroup() as tg:
                 _ = [tg.create_task(convertGalleryItem(item,session,sbsImages,anaglyphImages,wigglegramImages,extension,isCross)) for item in originalPost.gallery_data['items']]
 
+            print('converted ' + originalPost.title + ", submitting")
 
             async with asyncio.TaskGroup() as tg:
                 if not secondaryDuplicateFound:
@@ -89,12 +92,10 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
                     os.remove(image['image_path'])
                 for image in anaglyphImages:
                     os.remove(image['image_path'])
-                for image in wigglegramImages:
-                    os.remove(image['image_path'])
+                #for image in wigglegramImages:
+                #    os.remove(image['image_path'])
             except Exception as ex:
                 print('error removing albums: ' + str(ex))
-
-        print('converted ' + originalPost.title)
 
         if not secondaryDuplicateFound:
             swap = secondaryTask.result()
@@ -112,6 +113,8 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,w
 
         conversionComment = f'[Original post]({originalPost.permalink}) by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name})\r\n\r\nI\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) I convert posts between viewing methods and repost them between subs. Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions.'
         
+        print('beginning comment tasks for ' + originalPost.title)
+
         async with asyncio.TaskGroup() as itg:
             if not secondaryDuplicateFound:
                 itg.create_task(swap.reply(conversionComment))
