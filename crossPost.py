@@ -8,7 +8,8 @@ import asyncio
 from aiohttp import ClientSession
 import uuid
 from urllib.parse import urljoin, urlparse
-from dateutil.parser import parse
+import dateutil.parser
+from datetime import datetime, timedelta, timezone
 
 # isTesting = True
 isTesting = False
@@ -143,8 +144,8 @@ def doPostTitlesMatch(post1,post2):
     matchRatio = SequenceMatcher(None, post1.title, post2.title).ratio()
     if matchRatio > threshold:
         try:
-            date1 = parse(post1.title, fuzzy=True)
-            date2 = parse(post2.title, fuzzy=True)
+            date1 = dateutil.parser.parse(post1.title, fuzzy=True)
+            date2 = dateutil.parser.parse(post2.title, fuzzy=True)
             if date1 == date2: #allow fractals with date inside
                 return True
             else:
@@ -202,7 +203,8 @@ async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,wigglegr
                         post.id not in crossPosted and 
                         post.author.name not in optedOutList and
                         post.author.name != 'StereomancerBot' and
-                        post.upvote_ratio > 0.75] #TODO: filter out old stuff too
+                        post.upvote_ratio > 0.75 and
+                        datetime.now(timezone.utc) - timedelta(days=1) > datetime.fromtimestamp(post.created_utc,tz=timezone.utc)]
 
         print(f'found {len(primaryPosts)} eligible posts from {primarySub.display_name}')
 
@@ -210,9 +212,12 @@ async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,wigglegr
 
         print(f'converting {len(primaryPosts)} from {primarySub.display_name}')
 
-        async with ClientSession() as session:
-            async with asyncio.TaskGroup() as tg:
-                _ = [tg.create_task(checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session,isCross)) for originalPost in primaryPosts]
+        if isTesting:
+            print("testing. not converting")
+        else:
+            async with ClientSession() as session:
+                async with asyncio.TaskGroup() as tg:
+                    _ = [tg.create_task(checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,wigglegramSub,session,isCross)) for originalPost in primaryPosts]
                 
     except Exception as ex:
         print('convertAndCrossPost ex: ' + str(ex))
