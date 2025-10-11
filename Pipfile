@@ -8,7 +8,6 @@ image = "*"
 skia-python = "*"
 numpy = "*"
 opencv-python = "*"
-asyncpraw = "*"
 aiohttp = "*"
 praw = "*"
 ffmpeg = "*"
@@ -16,6 +15,7 @@ ffmpeg-python = "*"
 moviepy = "*"
 ffmpy = "*"
 python-dateutil = "*"
+asyncpraw = "*"
 
 [dev-packages]
 
