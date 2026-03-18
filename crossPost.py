@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 isTesting = False
 
 crossPostedListName = 'CrossPosted.txt'
-credsFileName = 'creds.json'
+credsFileName = 'Creds.json'
 userAgent = 'windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)'
 postsSearchLimit = 100
 postsMakeLimit = 3
@@ -186,10 +186,10 @@ async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,isCross)
 
         primaryPosts = [post async for post in primaryPosts 
                         if post.is_video == False and                          #keep videos out for now
-                        (hasattr(post,'is_gallery') == True or
+                        hasattr(post,'is_gallery') == False and #don't include galleries, bug in praw, wait for 7.8.2 for fix
                         ('.jpeg' in post.url or
                         '.png' in post.url or
-                        '.jpg' in post.url)) and
+                        '.jpg' in post.url) and
                         post.id not in crossPosted and 
                         post.author.name not in optedOutList and
                         post.author.name != 'StereomancerBot' and
