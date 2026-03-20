@@ -1,10 +1,12 @@
 from PIL import Image
 from io import BytesIO
+import logging
 
+logger = logging.getLogger(__name__)
 
 async def downloadAndDownsizeImage(imageUrl,userAgent,session):
     maxImageWidth = 2000
-    print(f'fetching {imageUrl}')
+    logger.info(f'fetching {imageUrl}')
     headers = {
         'User-Agent':userAgent #required by imgur
     }
@@ -12,7 +14,7 @@ async def downloadAndDownsizeImage(imageUrl,userAgent,session):
     async with session.get(url=imageUrl,headers=headers) as response:
         responseResult = await response.read()
         if response.status != 200:
-            print('image fetching failed: ' + str(response.status))
+            logger.info('image fetching failed: ' + str(response.status))
             return #throw?
         downloadedImage = Image.open(BytesIO(responseResult))
 

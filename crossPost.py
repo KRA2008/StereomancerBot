@@ -10,20 +10,23 @@ import uuid
 from urllib.parse import urljoin, urlparse
 import dateutil.parser
 from datetime import datetime, timedelta, timezone
+import logging
+import tempfile
 
-# isTesting = True
+logger = logging.getLogger(__name__)
+
+#isTesting = True
 isTesting = False
 
-crossPostedListName = 'CrossPosted.txt'
 credsFileName = 'Creds.json'
 userAgent = 'windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)'
 postsSearchLimit = 100
-postsMakeLimit = 3
-
+postsMakeLimit = 2
+tempDir = tempfile.gettempdir()
 
 async def convertGalleryItem(item,session,sbsImages,anaglyphImages,extension,isCross):
     try:
-        tempFileBase=f'temp/{uuid.uuid4()}'
+        tempFileBase=tempDir + f'/{uuid.uuid4()}'
 
         imageUrl = f'https://i.redd.it/{item['media_id']}{extension}'
 
@@ -32,7 +35,7 @@ async def convertGalleryItem(item,session,sbsImages,anaglyphImages,extension,isC
         sbsImages.append({'image_path':tempFileBase+'sbs'+extension})
         anaglyphImages.append({'image_path':tempFileBase+'anaglyph'+extension})
     except Exception as ex:
-        print('processGalleryItems ex: ' + ex)
+        logger.info('processGalleryItems ex: ' + ex)
         pprint.pprint(vars(ex))
         raise
 
@@ -41,7 +44,11 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
     try:
         # pprint.pprint(vars(originalPost))
 
-        print('converting ' + originalPost.title)
+        if (isTesting):
+            logger.info('testing mode, not converting ' + originalPost.title)
+            return
+        else:
+            logger.info('converting ' + originalPost.title)
 
         doAnaglyphConversion = True
         if (secondaryDuplicateFound and not isCross) or anaglyphDuplicateFound:
@@ -50,10 +57,10 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
         if hasattr(originalPost,'is_gallery') == False:
             baseUrl = urlparse(originalPost.url).path
             f,extension = os.path.splitext(baseUrl)
-            tempFileBase = f'temp/{uuid.uuid4()}'
+            tempFileBase=tempDir + f'/{uuid.uuid4()}'
             await stereoConvert.convertAndSaveToAllFormats(originalPost.url,tempFileBase,extension,userAgent,session,isCross)
 
-            print('converted ' + originalPost.title + ", submitting")
+            logger.info('converted ' + originalPost.title + ", submitting")
 
             async with asyncio.TaskGroup() as tg:
                 if not secondaryDuplicateFound:
@@ -64,7 +71,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
                 os.remove(tempFileBase+'sbs'+extension)
                 os.remove(tempFileBase+'anaglyph'+extension)
             except Exception as e:
-                print('error while removing: ' + str(e))
+                logger.info('error while removing: ' + str(e))
 
         else:
             sbsImages = []
@@ -75,7 +82,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
             async with asyncio.TaskGroup() as tg:
                 _ = [tg.create_task(convertGalleryItem(item,session,sbsImages,anaglyphImages,extension,isCross)) for item in originalPost.gallery_data['items']]
 
-            print('converted ' + originalPost.title + ", submitting")
+            logger.info('converted ' + originalPost.title + ", submitting")
 
             async with asyncio.TaskGroup() as tg:
                 if not secondaryDuplicateFound:
@@ -89,7 +96,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
                 for image in anaglyphImages:
                     os.remove(image['image_path'])
             except Exception as ex:
-                print('error removing albums: ' + str(ex))
+                logger.info('error removing albums: ' + str(ex))
 
         if not secondaryDuplicateFound:
             swap = secondaryTask.result()
@@ -105,7 +112,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
 
         conversionComment = f'[Original post]({originalPost.permalink}) by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name})\r\n\r\nI\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) I convert posts between viewing methods and repost them between subs. Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions.'
         
-        print('beginning comment tasks for ' + originalPost.title)
+        logger.info('beginning comment tasks for ' + originalPost.title)
 
         async with asyncio.TaskGroup() as itg:
             if not secondaryDuplicateFound:
@@ -113,17 +120,11 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
             if doAnaglyphConversion:
                 itg.create_task(anaglyph.reply(conversionComment))
             itg.create_task(originalPost.reply(originComment))
-        print('comments made for ' + originalPost.title)
-
-        if isTesting:
-            print('processed ' + originalPost.title + ' in testing mode')
-        else:
-            with open(crossPostedListName,'a') as file:
-                file.write(originalPost.id+'\n')
+        logger.info('comments made for ' + originalPost.title)
 
 
     except Exception as ex:
-        print('convertAndSubmitPost ex: ' + str(ex))
+        logger.info('convertAndSubmitPost ex: ' + str(ex))
         pprint.pprint(vars(ex))
         raise
 
@@ -171,16 +172,13 @@ async def checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secon
         
         await convertAndSubmitPost(originalPost,primarySub,secondarySub,anaglyphSub,session, secondaryDuplicateFound,anaglyphDuplicateFound,isCross)
     except Exception as ex:
-        print('checkForDuplicatesAndInitiateConversions ex: ' + str(ex))
+        logger.info('checkForDuplicatesAndInitiateConversions ex: ' + str(ex))
         pprint.pprint(vars(ex))
         raise
 
 async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,isCross):
     try:
         primaryPosts = primarySub.top('week',limit=postsSearchLimit)
-
-        with open(crossPostedListName,'r') as file:
-            crossPosted = file.read()
 
         optedOutList = creds['OptedOutUsers']
 
@@ -190,33 +188,43 @@ async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,isCross)
                         ('.jpeg' in post.url or
                         '.png' in post.url or
                         '.jpg' in post.url) and
-                        post.id not in crossPosted and 
                         post.author.name not in optedOutList and
                         post.author.name != 'StereomancerBot' and
                         post.upvote_ratio > 0.75 and
                         datetime.now(timezone.utc) - timedelta(days=1) > datetime.fromtimestamp(post.created_utc,tz=timezone.utc)]
 
-        print(f'found {len(primaryPosts)} eligible posts from {primarySub.display_name}')
+        tempPosts = []
+        for post in primaryPosts:
+            await post.load()
+            async for comment in post.comments:
+                postIsProcessed = False
+                if (comment.author.name == 'StereomancerBot'):
+                    postIsProcessed = True
+                    break
+            if (not postIsProcessed):
+                tempPosts.append(post)
+        primaryPosts = tempPosts
+
+        logger.info(f'found {len(primaryPosts)} eligible posts from {primarySub.display_name}')
 
         primaryPosts = primaryPosts[:postsMakeLimit]
 
-        print(f'converting {len(primaryPosts)} from {primarySub.display_name}')
+        logger.info(f'converting {len(primaryPosts)} from {primarySub.display_name}')
 
-        if isTesting:
-            print("testing. not converting")
-        else:
-            async with ClientSession() as session:
-                async with asyncio.TaskGroup() as tg:
-                    _ = [tg.create_task(checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,session,isCross)) for originalPost in primaryPosts]
+        async with ClientSession() as session:
+            async with asyncio.TaskGroup() as tg:
+                _ = [tg.create_task(checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,session,isCross)) for originalPost in primaryPosts]
                 
     except Exception as ex:
-        print('convertAndCrossPost ex: ' + str(ex))
+        logger.info('convertAndCrossPost ex: ' + str(ex))
         pprint.pprint(vars(ex))
         raise
 
 
 async def main():
     try:
+        logger.info('working directory: ' + tempDir)
+
         with open(credsFileName,'r') as file:
             creds = json.load(file)
 
@@ -228,14 +236,9 @@ async def main():
             user_agent=userAgent
         ) as reddit:
             
-            if isTesting:
-                crossview='crossview'
-                parallelview='parallelview'
-                anaglyph='anaglyph'
-            else:
-                crossview='crossview'
-                parallelview='parallelview'
-                anaglyph='anaglyph'
+            crossview='crossview'
+            parallelview='parallelview'
+            anaglyph='anaglyph'
 
             async with asyncio.TaskGroup() as tg:
                 crossviewSubredditTask = tg.create_task(reddit.subreddit(crossview))
@@ -250,12 +253,10 @@ async def main():
                 tg.create_task(convertAndCrossPost(creds,parallelviewSubreddit,crossviewSubreddit,anaglyphSubreddit,False))
 
     except OSError as e:
-        print(f"OSError caught: {e}")
-        print(f"OSError number (errno): {e.errno}")
-        print(f"Operating system error code (winerror on Windows): {getattr(e, 'winerror', 'N/A')}")
-        print(f"Error message: {e.strerror}")
+        logger.info(f"OSError caught: {e}")
+        logger.info(f"OSError number (errno): {e.errno}")
+        logger.info(f"Operating system error code (winerror on Windows): {getattr(e, 'winerror', 'N/A')}")
+        logger.info(f"Error message: {e.strerror}")
     except Exception as e:
-        print(f"Error caught: {e}")
+        logger.info(f"Error caught: {e}")
         pprint.pprint(vars(e))
-
-asyncio.run(main())
