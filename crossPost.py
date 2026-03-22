@@ -198,7 +198,8 @@ async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,isCross)
             await post.load()
             async for comment in post.comments:
                 postIsProcessed = False
-                if (comment.author.name == 'StereomancerBot'):
+                if (comment.author != None and
+                    comment.author.name == 'StereomancerBot'):
                     postIsProcessed = True
                     break
             if (not postIsProcessed):
