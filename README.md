@@ -1,1 +1,1 @@
-StereomancerBot is a Reddit bot, made to run occasionally via task scheduler, which takes posts from r/parallelview and r/crossview and converts them to the format of the other subreddit and posts them in it.
+StereomancerBot is a Reddit bot, made to run in Azure Functions, which takes posts from r/parallelview and r/crossview and converts them to the format of the other subreddit and posts them in it.
