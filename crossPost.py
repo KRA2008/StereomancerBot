@@ -146,37 +146,7 @@ def doPostTitlesMatch(post1,post2):
     else:
         return False
 
-
-async def checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,session,isCross):
-    try:
-        secondaryPosts = secondarySub.new(limit=postsSearchLimit)
-        anaglyphPosts = anaglyphSub.new(limit=postsSearchLimit)
-
-        secondaryDuplicateFound = False
-        async for secondaryPost in secondaryPosts:
-            if doPostTitlesMatch(originalPost,secondaryPost):
-                secondaryDuplicateFound = True
-                break
-            
-        anaglyphDuplicateFound = False
-        async for anaglyphPost in anaglyphPosts:
-            if doPostTitlesMatch(originalPost,anaglyphPost):
-                anaglyphDuplicateFound = True
-                break
-
-        if secondaryDuplicateFound and anaglyphDuplicateFound:
-            return
-        
-        if secondaryDuplicateFound and not isCross:
-            return
-        
-        await convertAndSubmitPost(originalPost,primarySub,secondarySub,anaglyphSub,session, secondaryDuplicateFound,anaglyphDuplicateFound,isCross)
-    except Exception as ex:
-        logger.info('checkForDuplicatesAndInitiateConversions ex: ' + str(ex))
-        pprint.pprint(vars(ex))
-        raise
-
-async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,isCross):
+async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,session,isCross):
     try:
         primaryPosts = primarySub.top('week',limit=postsSearchLimit)
 
@@ -208,13 +178,37 @@ async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,isCross)
 
         logger.info(f'found {len(primaryPosts)} eligible posts from {primarySub.display_name}')
 
-        primaryPosts = primaryPosts[:postsMakeLimit]
+        secondaryPosts = [post async for post in secondarySub.new(limit=postsSearchLimit)]
+        anaglyphPosts = [post async for post in anaglyphSub.new(limit=postsSearchLimit)]
+        
+        postsCount = 0
+        for originalPost in primaryPosts:
 
-        logger.info(f'converting {len(primaryPosts)} from {primarySub.display_name}')
+            secondaryDuplicateFound = False
+            for secondaryPost in secondaryPosts:
+                if doPostTitlesMatch(originalPost,secondaryPost):
+                    secondaryDuplicateFound = True
+                    break
+                
+            anaglyphDuplicateFound = False
+            for anaglyphPost in anaglyphPosts:
+                if doPostTitlesMatch(originalPost,anaglyphPost):
+                    anaglyphDuplicateFound = True
+                    break
 
-        async with ClientSession() as session:
-            async with asyncio.TaskGroup() as tg:
-                _ = [tg.create_task(checkForDuplicatesAndInitiateConversions(originalPost,primarySub,secondarySub,anaglyphSub,session,isCross)) for originalPost in primaryPosts]
+            if secondaryDuplicateFound and anaglyphDuplicateFound:
+                logger.info('skipping ' + originalPost.title + ', fully processed by OP')
+                continue
+            
+            if secondaryDuplicateFound and not isCross:
+                logger.info('skipping ' + originalPost.title + ', swapped by OP')
+                continue
+            
+            postsCount = postsCount + 1
+            if (postsCount > postsMakeLimit): 
+                return
+
+            await convertAndSubmitPost(originalPost,primarySub,secondarySub,anaglyphSub,session,secondaryDuplicateFound,anaglyphDuplicateFound,isCross)
                 
     except Exception as ex:
         logger.info('convertAndCrossPost ex: ' + str(ex))
@@ -249,9 +243,10 @@ async def main():
             parallelviewSubreddit = parallelviewSubredditTask.result()
             anaglyphSubreddit = anaglyphSubredditTask.result()
 
-            async with asyncio.TaskGroup() as tg:
-                tg.create_task(convertAndCrossPost(creds,crossviewSubreddit,parallelviewSubreddit,anaglyphSubreddit,True))
-                tg.create_task(convertAndCrossPost(creds,parallelviewSubreddit,crossviewSubreddit,anaglyphSubreddit,False))
+            async with ClientSession() as session:
+                async with asyncio.TaskGroup() as tg:
+                    tg.create_task(convertAndCrossPost(creds,crossviewSubreddit,parallelviewSubreddit,anaglyphSubreddit,session,True))
+                    tg.create_task(convertAndCrossPost(creds,parallelviewSubreddit,crossviewSubreddit,anaglyphSubreddit,session,False))
 
     except OSError as e:
         logger.info(f"OSError caught: {e}")
