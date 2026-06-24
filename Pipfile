@@ -9,12 +9,12 @@ skia-python = "*"
 numpy = "*"
 opencv-python = "*"
 aiohttp = "*"
-praw = "*"
 ffmpeg = "*"
 ffmpeg-python = "*"
 moviepy = "*"
 ffmpy = "*"
 python-dateutil = "*"
+praw = "*"
 asyncpraw = "*"
 
 [dev-packages]

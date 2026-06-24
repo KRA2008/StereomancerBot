@@ -15,12 +15,12 @@ import tempfile
 
 logger = logging.getLogger(__name__)
 
-#isTesting = True
-isTesting = False
+isTesting = True
+#isTesting = False
 
 credsFileName = 'Creds.json'
 userAgent = 'windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)'
-postsSearchLimit = 100
+postsSearchLimit = 100 #TODO: go back to 1000
 postsMakeLimit = 2
 tempDir = tempfile.gettempdir()
 
@@ -44,11 +44,12 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
     try:
         # pprint.pprint(vars(originalPost))
 
-        if (isTesting):
-            logger.info('testing mode, not converting ' + originalPost.title)
-            return
-        else:
-            logger.info('converting ' + originalPost.title)
+        # TODO: REVERSE THIS
+        # if (isTesting):
+        #     logger.info('testing mode, not converting ' + originalPost.title + ' from ' + originSub.display_name)
+        #     return
+        # else:
+        logger.info('converting ' + originalPost.title + ' from ' + originSub.display_name)
 
         doAnaglyphConversion = True
         if (secondaryDuplicateFound and not isCross) or anaglyphDuplicateFound:
@@ -64,9 +65,9 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
 
             async with asyncio.TaskGroup() as tg:
                 if not secondaryDuplicateFound:
-                    secondaryTask = tg.create_task(secondarySub.submit_image(image_path=tempFileBase+'sbs'+extension,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
+                    secondaryTask = tg.create_task(secondarySub.submit(image=asyncpraw.models.PostMedia(tempFileBase+'sbs'+extension),title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
                 if doAnaglyphConversion:
-                    anaglyphTask = tg.create_task(anaglyphSub.submit_image(image_path=tempFileBase+'anaglyph'+extension,title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
+                    anaglyphTask = tg.create_task(anaglyphSub.submit(image=asyncpraw.models.PostMedia(tempFileBase+'anaglyph'+extension),title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
             try:
                 os.remove(tempFileBase+'sbs'+extension)
                 os.remove(tempFileBase+'anaglyph'+extension)
@@ -86,9 +87,9 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
 
             async with asyncio.TaskGroup() as tg:
                 if not secondaryDuplicateFound:
-                    secondaryTask = tg.create_task(secondarySub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=sbsImages,nsfw=originalPost.over_18))
+                    secondaryTask = tg.create_task(secondarySub.submit(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=sbsImages,nsfw=originalPost.over_18))
                 if doAnaglyphConversion:
-                    anaglyphTask = tg.create_task(anaglyphSub.submit_gallery(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=anaglyphImages,nsfw=originalPost.over_18))
+                    anaglyphTask = tg.create_task(anaglyphSub.submit(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=anaglyphImages,nsfw=originalPost.over_18))
                     
             try:
                 for image in sbsImages:
@@ -128,7 +129,6 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
         pprint.pprint(vars(ex))
         raise
 
-
 def doPostTitlesMatch(post1,post2):
     titleLength = min(len(post1.title),len(post2.title))
     threshold = titleLength/(3+titleLength) #plotted length against ratio while allowing ' (OC)' tacked on the end
@@ -148,7 +148,7 @@ def doPostTitlesMatch(post1,post2):
 
 async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,session,isCross):
     try:
-        primaryPosts = primarySub.top('week',limit=postsSearchLimit)
+        primaryPosts = primarySub.top(time_filter='week',limit=postsSearchLimit)
 
         optedOutList = creds['OptedOutUsers']
 
@@ -167,7 +167,7 @@ async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,session,
         for post in primaryPosts:
             await post.load()
             postIsProcessed = False
-            async for comment in post.comments:
+            for comment in post.comments:
                 if (comment.author != None and
                     comment.author.name == 'StereomancerBot'):
                     postIsProcessed = True
@@ -231,9 +231,14 @@ async def main():
             user_agent=userAgent
         ) as reddit:
             
-            crossview='crossview'
-            parallelview='parallelview'
-            anaglyph='anaglyph'
+            if isTesting:
+                crossview='test'
+                parallelview='testposting'
+                anaglyph='testingground4bots'
+            else:
+                crossview='crossview'
+                parallelview='parallelview'
+                anaglyph='anaglyph'
 
             async with asyncio.TaskGroup() as tg:
                 crossviewSubredditTask = tg.create_task(reddit.subreddit(crossview))
@@ -253,6 +258,15 @@ async def main():
         logger.info(f"OSError number (errno): {e.errno}")
         logger.info(f"Operating system error code (winerror on Windows): {getattr(e, 'winerror', 'N/A')}")
         logger.info(f"Error message: {e.strerror}")
+    except ExceptionGroup as e:
+        logger.info(f"Exception group caught: {e}")
+        digIntoExGroup(e)
     except Exception as e:
-        logger.info(f"Error caught: {e}")
+        logger.info(f"Exception: {e}")
         pprint.pprint(vars(e))
+
+def digIntoExGroup(ex):
+    for innerEx in ex.exceptions:
+        logger.info(f"Inner exception: {innerEx}")
+        if(isinstance(innerEx,ExceptionGroup)):
+            digIntoExGroup(innerEx)
