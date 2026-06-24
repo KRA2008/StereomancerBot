@@ -12,15 +12,18 @@ import dateutil.parser
 from datetime import datetime, timedelta, timezone
 import logging
 import tempfile
+from asyncpraw.models import PostMedia
+import copy
 
 logger = logging.getLogger(__name__)
 
-isTesting = True
-#isTesting = False
+#isTesting = True
+isTesting = False
 
 credsFileName = 'Creds.json'
 userAgent = 'windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)'
-postsSearchLimit = 100 #TODO: go back to 1000
+primaryPostsSearchLimit = 100
+secondaryPostsSearchLimit = 1000
 postsMakeLimit = 2
 tempDir = tempfile.gettempdir()
 
@@ -32,29 +35,35 @@ async def convertGalleryItem(item,session,sbsImages,anaglyphImages,extension,isC
 
         await stereoConvert.convertAndSaveToAllFormats(imageUrl,tempFileBase,extension,userAgent,session,isCross)
 
-        sbsImages.append({'image_path':tempFileBase+'sbs'+extension})
-        anaglyphImages.append({'image_path':tempFileBase+'anaglyph'+extension})
+        sbsImage = copy.deepcopy(item)
+        sbsImage['media'] = PostMedia(tempFileBase+'sbs'+extension)
+
+        anaglyphImage = copy.deepcopy(item)
+        anaglyphImage['media'] = PostMedia(tempFileBase+'anaglyph'+extension)
+
+        sbsImages.append(sbsImage)
+        anaglyphImages.append(anaglyphImage)
     except Exception as ex:
-        logger.info('processGalleryItems ex: ' + ex)
+        logger.info('convertGalleryItem ex: ' + ex)
         pprint.pprint(vars(ex))
         raise
 
 
 async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,session,secondaryDuplicateFound,anaglyphDuplicateFound,isCross):
     try:
-        # pprint.pprint(vars(originalPost))
-
-        # TODO: REVERSE THIS
-        # if (isTesting):
-        #     logger.info('testing mode, not converting ' + originalPost.title + ' from ' + originSub.display_name)
-        #     return
-        # else:
         logger.info('converting ' + originalPost.title + ' from ' + originSub.display_name)
 
         doAnaglyphConversion = True
         if (secondaryDuplicateFound and not isCross) or anaglyphDuplicateFound:
             doAnaglyphConversion = False
         
+        selfTextStart = f"I'm a bot. This is a conversion of [this original post]({originalPost.permalink}) from r/{originSub.display_name} by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name}).\r\n\r\n"
+        selfTextEnd = f"Visit [the original post]({originalPost.permalink}) for more information or to leave enthusiastic comments for the original poster.\r\n\r\n Message [KRA2008](https://reddit.com/user/KRA2008) if you have questions or comments about this bot."
+        if originalPost.selftext != '':
+            selfTextQuote = selfTextStart + f"They said:\r\n\r\n> {originalPost.selftext.replace('\n','\n> ')}\r\n\r\n" + selfTextEnd
+        else:
+            selfTextQuote = selfTextStart + selfTextEnd
+
         if hasattr(originalPost,'is_gallery') == False:
             baseUrl = urlparse(originalPost.url).path
             f,extension = os.path.splitext(baseUrl)
@@ -65,9 +74,9 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
 
             async with asyncio.TaskGroup() as tg:
                 if not secondaryDuplicateFound:
-                    secondaryTask = tg.create_task(secondarySub.submit(image=asyncpraw.models.PostMedia(tempFileBase+'sbs'+extension),title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
+                    secondaryTask = tg.create_task(secondarySub.submit(image=PostMedia(tempFileBase+'sbs'+extension),title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18,selftext=selfTextQuote))
                 if doAnaglyphConversion:
-                    anaglyphTask = tg.create_task(anaglyphSub.submit(image=asyncpraw.models.PostMedia(tempFileBase+'anaglyph'+extension),title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18))
+                    anaglyphTask = tg.create_task(anaglyphSub.submit(image=PostMedia(tempFileBase+'anaglyph'+extension),title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',nsfw=originalPost.over_18,selftext=selfTextQuote))
             try:
                 os.remove(tempFileBase+'sbs'+extension)
                 os.remove(tempFileBase+'anaglyph'+extension)
@@ -87,10 +96,10 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
 
             async with asyncio.TaskGroup() as tg:
                 if not secondaryDuplicateFound:
-                    secondaryTask = tg.create_task(secondarySub.submit(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=sbsImages,nsfw=originalPost.over_18))
+                    secondaryTask = tg.create_task(secondarySub.submit(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',gallery=sbsImages,nsfw=originalPost.over_18,selftext=selfTextQuote))
                 if doAnaglyphConversion:
-                    anaglyphTask = tg.create_task(anaglyphSub.submit(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',images=anaglyphImages,nsfw=originalPost.over_18))
-                    
+                    anaglyphTask = tg.create_task(anaglyphSub.submit(title=originalPost.title + ' (converted from r/' + originSub.display_name + ')',gallery=anaglyphImages,nsfw=originalPost.over_18,selftext=selfTextQuote))
+
             try:
                 for image in sbsImages:
                     os.remove(image['image_path'])
@@ -111,7 +120,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
         if doAnaglyphConversion:
             originComment+= f'\r\n\r\n[anaglyph]({anaglyph.permalink})'
 
-        conversionComment = f'[Original post]({originalPost.permalink}) by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name})\r\n\r\nI\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) to help the stereoscopic 3D community on Reddit :) I convert posts between viewing methods and repost them between subs. Please message [KRA2008](https://reddit.com/user/KRA2008) if you have comments or questions.'
+        conversionComment = selfTextStart + selfTextEnd
         
         logger.info('beginning comment tasks for ' + originalPost.title)
 
@@ -148,21 +157,22 @@ def doPostTitlesMatch(post1,post2):
 
 async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,session,isCross):
     try:
-        primaryPosts = primarySub.top(time_filter='week',limit=postsSearchLimit)
+        primaryPosts = primarySub.top(time_filter='week',limit=primaryPostsSearchLimit)
 
         optedOutList = creds['OptedOutUsers']
 
         primaryPosts = [post async for post in primaryPosts 
-                        if post.is_video == False and                          #keep videos out for now
-                        hasattr(post,'is_gallery') == False and #don't include galleries, bug in praw, wait for 7.8.2 for fix
+                        if post.is_video == False and    #keep videos out for now
+                        (hasattr(post,'is_gallery') == True or
                         ('.jpeg' in post.url or
                         '.png' in post.url or
-                        '.jpg' in post.url) and
+                        '.jpg' in post.url)) and
+                        post.author != None and
                         post.author.name not in optedOutList and
                         post.author.name != 'StereomancerBot' and
                         post.upvote_ratio > 0.75 and
                         datetime.now(timezone.utc) - timedelta(days=1) > datetime.fromtimestamp(post.created_utc,tz=timezone.utc)]
-
+                        
         tempPosts = []
         for post in primaryPosts:
             await post.load()
@@ -178,8 +188,8 @@ async def convertAndCrossPost(creds,primarySub,secondarySub,anaglyphSub,session,
 
         logger.info(f'found {len(primaryPosts)} eligible posts from {primarySub.display_name}')
 
-        secondaryPosts = [post async for post in secondarySub.new(limit=postsSearchLimit)]
-        anaglyphPosts = [post async for post in anaglyphSub.new(limit=postsSearchLimit)]
+        secondaryPosts = [post async for post in secondarySub.new(limit=secondaryPostsSearchLimit)]
+        anaglyphPosts = [post async for post in anaglyphSub.new(limit=secondaryPostsSearchLimit)]
         
         postsCount = 0
         for originalPost in primaryPosts:
