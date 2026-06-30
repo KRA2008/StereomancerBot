@@ -17,8 +17,8 @@ import copy
 
 logger = logging.getLogger(__name__)
 
-#isTesting = True
-isTesting = False
+isTesting = True
+#isTesting = False
 
 credsFileName = 'Creds.json'
 userAgent = 'windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)'
@@ -57,12 +57,13 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
         if (secondaryDuplicateFound and not isCross) or anaglyphDuplicateFound:
             doAnaglyphConversion = False
         
-        selfTextStart = f"I'm a bot. This is a conversion of [this original post]({originalPost.permalink}) from r/{originSub.display_name} by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name}).\r\n\r\n"
-        selfTextEnd = f"Visit [the original post]({originalPost.permalink}) for more information or to leave enthusiastic comments for the original poster.\r\n\r\n Message [KRA2008](https://reddit.com/user/KRA2008) if you have questions or comments about this bot."
+        selfTextStart = f"This is a conversion of [this original post]({originalPost.permalink}) from r/{originSub.display_name} by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name}). "
+        selfTextEnd = f"Visit [the original post]({originalPost.permalink}) for more information or to leave enthusiastic comments for the original poster.\r\n\r\n"
+        selfTextBot = f"*I'm a bot but I am not AI, and I was made by [KRA2008](https://reddit.com/user/KRA2008) without AI. I exist to create a bridge between people with different viewing preferences and abilities. I'm trying to enrich your experience, not make money. Message [KRA2008](https://reddit.com/user/KRA2008) if you have questions or comments about this bot.*"
         if originalPost.selftext != '':
-            selfTextQuote = selfTextStart + f"They said:\r\n\r\n> {originalPost.selftext.replace('\n','\n> ')}\r\n\r\n" + selfTextEnd
+            selfTextQuote = selfTextStart + f"\r\n\r\nThey said:\r\n\r\n> {originalPost.selftext.replace('\n','\n> ')}\r\n\r\n" + selfTextEnd + selfTextBot
         else:
-            selfTextQuote = selfTextStart + selfTextEnd
+            selfTextQuote = selfTextStart + selfTextEnd + selfTextBot
 
         if hasattr(originalPost,'is_gallery') == False:
             baseUrl = urlparse(originalPost.url).path
@@ -113,14 +114,15 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
         if doAnaglyphConversion:
             anaglyph = anaglyphTask.result()
 
-        originComment = f'I\'m a bot made by [KRA2008](https://reddit.com/user/KRA2008) and I\'ve converted this post to:'
+        originComment = f'I\'ve converted this post to:'
         if not secondaryDuplicateFound:
             sbsSub = 'parallelview' if isCross else 'crossview'
             originComment+= f'\r\n\r\n[{sbsSub}]({swap.permalink})'
         if doAnaglyphConversion:
             originComment+= f'\r\n\r\n[anaglyph]({anaglyph.permalink})'
+        originComment+= f'\r\n\r\n{selfTextBot}'
 
-        conversionComment = selfTextStart + selfTextEnd
+        conversionComment = selfTextStart + selfTextEnd + selfTextBot
         
         logger.info('beginning comment tasks for ' + originalPost.title)
 
