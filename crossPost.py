@@ -59,7 +59,7 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
         
         selfTextStart = f"This is a conversion of [this original post]({originalPost.permalink}) from r/{originSub.display_name} by [{originalPost.author.name}](https://reddit.com/user/{originalPost.author.name}). "
         selfTextEnd = f"Visit [the original post]({originalPost.permalink}) for more information or to leave enthusiastic comments for the original poster.\r\n\r\n"
-        selfTextBot = f"*I'm a bot. I exist to create a bridge between people with different viewing preferences and abilities. I'm trying to enrich your experience, not make money. Message [KRA2008](https://reddit.com/user/KRA2008) if you have questions or comments about this bot.*"
+        selfTextBot = f"*I'm a bot. I exist to create a bridge between people with different viewing preferences and abilities. Message [KRA2008](https://reddit.com/user/KRA2008) if you have questions or comments about this bot.*"
         if originalPost.selftext != '':
             selfTextQuote = selfTextStart + f"\r\n\r\nThey said:\r\n\r\n> {originalPost.selftext.replace('\n','\n> ')}\r\n\r\n" + selfTextEnd + selfTextBot
         else:

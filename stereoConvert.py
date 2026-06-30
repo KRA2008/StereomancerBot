@@ -13,9 +13,12 @@ async def downloadAndDownsizeImage(imageUrl,userAgent,session):
 
     async with session.get(url=imageUrl,headers=headers) as response:
         responseResult = await response.read()
-        if response.status != 200:
-            logger.info('image fetching failed: ' + str(response.status))
+        if response.status == 404:
+            logger.info('image not found')
             downloadedImage = Image.new(mode="RGB", size=(100, 100), color="black") #dummy image
+        elif response.status != 200:
+            logger.info('image fetching failed: ' + str(response.status))
+            raise Exception("Image fetching failed: " + str(response.status))
         else:
             downloadedImage = Image.open(BytesIO(responseResult))
 
