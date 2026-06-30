@@ -17,8 +17,8 @@ import copy
 
 logger = logging.getLogger(__name__)
 
-isTesting = True
-#isTesting = False
+#isTesting = True
+isTesting = False
 
 credsFileName = 'Creds.json'
 userAgent = 'windows:com.kra2008.stereomancerbot:v2 (by /u/kra2008)'
