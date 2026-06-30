@@ -15,8 +15,9 @@ async def downloadAndDownsizeImage(imageUrl,userAgent,session):
         responseResult = await response.read()
         if response.status != 200:
             logger.info('image fetching failed: ' + str(response.status))
-            return #throw?
-        downloadedImage = Image.open(BytesIO(responseResult))
+            downloadedImage = Image.new(mode="RGB", size=(100, 100), color="black") #dummy image
+        else:
+            downloadedImage = Image.open(BytesIO(responseResult))
 
     if downloadedImage.width > maxImageWidth:
         downloadedImage = downloadedImage.resize((int(maxImageWidth),int(maxImageWidth * downloadedImage.height / downloadedImage.width)))
