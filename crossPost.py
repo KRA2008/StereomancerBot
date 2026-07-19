@@ -36,10 +36,14 @@ async def convertGalleryItem(item,session,sbsImages,anaglyphImages,extension,isC
         await stereoConvert.convertAndSaveToAllFormats(imageUrl,tempFileBase,extension,userAgent,session,isCross)
 
         sbsImage = copy.deepcopy(item)
-        sbsImage['media'] = PostMedia(tempFileBase+'sbs'+extension)
+        path = tempFileBase+'sbs'+extension
+        sbsImage['path'] = path
+        sbsImage['media'] = PostMedia(path)
 
         anaglyphImage = copy.deepcopy(item)
-        anaglyphImage['media'] = PostMedia(tempFileBase+'anaglyph'+extension)
+        path = tempFileBase+'anaglyph'+extension
+        anaglyphImage['path'] = path
+        anaglyphImage['media'] = PostMedia(path)
 
         sbsImages.append(sbsImage)
         anaglyphImages.append(anaglyphImage)
@@ -103,9 +107,9 @@ async def convertAndSubmitPost(originalPost,originSub,secondarySub,anaglyphSub,s
 
             try:
                 for image in sbsImages:
-                    os.remove(image['image_path'])
+                    os.remove(image['path'])
                 for image in anaglyphImages:
-                    os.remove(image['image_path'])
+                    os.remove(image['path'])
             except Exception as ex:
                 logger.info('error removing albums: ' + str(ex))
 
